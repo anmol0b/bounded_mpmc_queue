@@ -1,0 +1,6 @@
+[package]
+name = "bounded_mpmc_queue"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
