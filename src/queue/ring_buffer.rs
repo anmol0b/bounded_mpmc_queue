@@ -1,4 +1,4 @@
-struct RingBuffer<T>{
+pub struct RingBuffer<T>{
     buffer: Vec<Option<T>>,
     head: usize,
     tail: usize,
@@ -6,7 +6,7 @@ struct RingBuffer<T>{
     capacity: usize,
 }
 impl<T> RingBuffer<T> {
-    fn new(capacity: usize) -> RingBuffer<T>{
+    pub fn new(capacity: usize) -> RingBuffer<T>{
         RingBuffer {
             head: 0,
             tail: 0,
@@ -15,19 +15,19 @@ impl<T> RingBuffer<T> {
             buffer: (0..capacity).map(|_| None).collect(),
         }
     }
-    fn is_empty(&self) -> bool{
+    pub fn is_empty(&self) -> bool{
         self.len == 0
     }
-    fn is_full(&self) -> bool{
+    pub fn is_full(&self) -> bool{
         self.len == self.capacity    
     }
-    fn pop(&mut self) -> Option<T>{
+    pub fn pop(&mut self) -> Option<T>{
         let item = self.buffer[self.head].take();
         self.head = (self.head + 1) % self.capacity;
         self.len -= 1;
         item
     }
-    fn push(&mut self, item: T){
+    pub fn push(&mut self, item: T){
         self.buffer[self.tail] = Some(item);
         self.tail = (self.tail + 1) % self.capacity;
         self.len += 1;
