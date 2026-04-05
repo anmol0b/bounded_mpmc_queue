@@ -1,4 +1,5 @@
 use crate::queue::ring_buffer::RingBuffer;
+use crate::traits::bounded_queue::BoundedQueue;
 use std::sync::{Condvar, Mutex};
 
 pub struct BlockingQueue<T> {
@@ -49,5 +50,23 @@ impl<T> BlockingQueue<T> {
         let item = guard.pop().unwrap();
         self.not_full.notify_one();
         Some(item)
+    }
+}
+
+impl<T: Send> BoundedQueue<T> for BlockingQueue<T> {
+    fn new(capacity: usize) -> Self {
+        BlockingQueue::new(capacity)
+    }
+    fn push(&self, item: T) {
+        self.push(item)
+    }
+    fn pop(&self) -> T {
+        self.pop()
+    }
+    fn try_push(&self, item: T) -> Result<(), T> {
+        self.try_push(item)
+    }
+    fn try_pop(&self) -> Option<T> {
+        self.try_pop()
     }
 }
