@@ -32,4 +32,22 @@ impl<T> BlockingQueue<T> {
         self.not_full.notify_one();
         item
     }
+    pub fn try_push(&self, item: T) -> Result<(), T> {
+        let mut guard = self.buffer.lock().unwrap();
+        if guard.is_full() {
+            return Err(item);
+        }
+        guard.push(item);
+        self.not_empty.notify_one();
+        Ok(())
+    }
+    pub fn try_pop(&self) -> Option<T> {
+        let mut guard = self.buffer.lock().unwrap();
+        if guard.is_empty() {
+            return None;
+        }
+        let item = guard.pop().unwrap();
+        self.not_full.notify_one();
+        Some(item)
+    }
 }
