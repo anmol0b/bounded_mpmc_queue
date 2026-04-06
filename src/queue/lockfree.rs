@@ -25,12 +25,12 @@ impl<T> LockFreeQueue<T> {
     }
     pub fn try_push(&self, item: T) -> Result<(), T> {
         let pos = self.tail.load(Ordering::Relaxed);
-        let slot = &self.slots[pos % self.capacity];
+        let slot = &self.slots[pos & (self.capacity - 1)];
         let seq = slot.sequence.load(Ordering::Acquire);
         if seq == pos {
             match self
                 .tail
-                .compare_exchange(pos, pos + 1, Ordering::SeqCst, Ordering::Relaxed)
+                .compare_exchange(pos, pos + 1, Ordering::AcqRel, Ordering::Relaxed)
             {
                 Ok(_) => {
                     unsafe {
@@ -49,12 +49,12 @@ impl<T> LockFreeQueue<T> {
     }
     pub fn try_pop(&self) -> Option<T> {
         let pos = self.head.load(Ordering::Relaxed);
-        let slot = &self.slots[pos % self.capacity];
+        let slot = &self.slots[pos & (self.capacity - 1)];
         let seq = slot.sequence.load(Ordering::Acquire);
         if seq == pos + 1 {
             match self
                 .head
-                .compare_exchange(pos, pos + 1, Ordering::SeqCst, Ordering::Relaxed)
+                .compare_exchange(pos, pos + 1, Ordering::AcqRel, Ordering::Relaxed)
             {
                 Ok(_) => {
                     let item = unsafe { (*slot.data.get()).take() };
