@@ -1,10 +1,12 @@
+use crate::sync::backoff::Backoff;
+use crate::utils::cache_pad::CachePadded;
 use crate::{queue::slot::Slot, traits::bounded_queue::BoundedQueue};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct LockFreeQueue<T> {
     slots: Box<[Slot<T>]>,
-    head: AtomicUsize,
-    tail: AtomicUsize,
+    head: CachePadded<AtomicUsize>,
+    tail: CachePadded<AtomicUsize>,
     capacity: usize,
 }
 
@@ -16,8 +18,8 @@ impl<T> LockFreeQueue<T> {
             .into_boxed_slice();
         LockFreeQueue {
             slots,
-            head: AtomicUsize::new(0),
-            tail: AtomicUsize::new(0),
+            head: CachePadded::new(AtomicUsize::new(0)),
+            tail: CachePadded::new(AtomicUsize::new(0)),
             capacity,
         }
     }
@@ -67,23 +69,23 @@ impl<T> LockFreeQueue<T> {
         }
     }
     pub fn push(&self, mut item: T) {
+        let mut backoff = Backoff::new();
         loop {
             match self.try_push(item) {
                 Ok(()) => return,
                 Err(returned) => {
                     item = returned;
-                    std::thread::yield_now();
+                    backoff.spin();
                 }
             }
         }
     }
     pub fn pop(&self) -> T {
+        let mut backoff = Backoff::new();
         loop {
             match self.try_pop() {
                 Some(item) => return item,
-                None => {
-                    std::thread::yield_now();
-                }
+                None => backoff.spin(),
             }
         }
     }
