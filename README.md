@@ -92,6 +92,11 @@ Criterion generates an HTML report under `target/criterion/`. Four benchmark gro
 | `scaling` | Both implementations side-by-side across thread counts at cap=1024 |
 | `asymmetric` | 8 producers / 2 consumers and 1 producer / 8 consumers |
 
+To view the full HTML report with graphs:
+```bash
+open target/criterion/report/index.html
+```
+
 ## Benchmark Results
 
 Benchmarks run on a 10 core machine. Each cell shows the median time to complete 100 push + 100 pop operations per thread.
@@ -129,6 +134,21 @@ Benchmarks run on a 10 core machine. Each cell shows the median time to complete
 |---|---|
 | 8 producers / 2 consumers | 106.5 |
 | 1 producer / 8 consumers | 83.4 |
+
+
+## Benchmark Graphs
+
+### Scaling — Blocking vs Lock-free
+![Scaling](assets/scaling_comparison.png)
+
+> Red = blocking, Green = lockfree. 
+> Lockfree pulls ahead at 8 threads and stays faster through 16.
+
+### Asymmetric Workloads
+![Asymmetric](assets/asymmetric_comparison.png)
+
+> 1 producer + 8 consumers (83µs) is faster and tighter 
+> than 8 producers + 2 consumers (106µs).
 
 ## Key Findings
 
