@@ -1,1 +1,21 @@
-/target
+target/
+**/target/
+
+# Rust / Cargo
+Cargo.lock
+**/Cargo.lock
+
+# Editor / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Cursor / local tooling
+.cursor/
+
+*.proptest-regressions
