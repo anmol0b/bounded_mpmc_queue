@@ -17,6 +17,7 @@ impl Backoff {
             }
             self.step += 1;
         } else {
+            self.step = 0;
             thread::yield_now();
         }
     }
