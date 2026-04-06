@@ -139,13 +139,13 @@ Benchmarks run on a 10 core machine. Each cell shows the median time to complete
 ## Benchmark Graphs
 
 ### Scaling — Blocking vs Lock-free
-![Scaling](assets/scaling_comparison.png)
+![Scaling](assets/scaling_comparison2.png)
 
 > Red = blocking, Green = lockfree. 
 > Lockfree pulls ahead at 8 threads and stays faster through 16.
 
 ### Asymmetric Workloads
-![Asymmetric](assets/asymmetric_comparison.png)
+![Asymmetric](assets/asymmetric_comparison2.png)
 
 > 1 producer + 8 consumers (83µs) is faster and tighter 
 > than 8 producers + 2 consumers (106µs).
