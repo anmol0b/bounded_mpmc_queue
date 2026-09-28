@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  lint:
+    name: fmt, clippy, sync-shim guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets
+      - name: std sync primitives only via src/sync/primitives.rs
+        run: |
+          if grep -rnE 'std::(sync::(atomic|Mutex|Condvar|MutexGuard)|cell::UnsafeCell)' src \
+               --include='*.rs' | grep -v '^src/sync/primitives.rs:'; then
+            echo "::error::use crate::sync so loom can model every primitive"
+            exit 1
+          fi
+
+  test:
+    name: test (${{ matrix.os }}, ${{ matrix.rust }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        rust: [stable, beta]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --all-targets
+      - run: cargo test --doc
+      - name: parked threads use no CPU
+        run: cargo test --release --test cpu_burn -- --ignored --nocapture
+        # Shared CI runners are noisy; keep this informational.
+        continue-on-error: true
+
+  msrv:
+    name: MSRV 1.85
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.85
+      - run: cargo check --lib
+
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --no-deps
+
+  loom:
+    name: loom model checking
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: --cfg loom -D warnings
+      LOOM_MAX_PREEMPTIONS: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: loom
+      - run: cargo test --release --test loom
+
+  miri:
+    name: Miri
+    runs-on: ubuntu-latest
+    env:
+      MIRIFLAGS: -Zmiri-strict-provenance -Zmiri-symbolic-alignment-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri, rust-src
+      - run: cargo miri setup
+      - run: >
+          cargo miri test --lib --test drop_semantics --test send_sync
+          --test regressions --test linearizability --test proptest_model
+
+  bench-smoke:
+    name: benchmarks compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo bench --no-run
+      - run: cargo build --release --example plot

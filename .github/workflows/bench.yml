@@ -1,0 +1,22 @@
+name: Benchmarks
+
+# Manual only: shared runners are too noisy to gate merges on performance.
+on: workflow_dispatch
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo bench --bench throughput
+      - run: cargo bench --bench latency
+      - run: cargo run --release --example plot > bench-tables.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmarks
+          path: |
+            target/criterion
+            target/latency
+            assets/*.svg
+            bench-tables.md
