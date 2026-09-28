@@ -168,15 +168,15 @@ impl<T> LockFreeQueue<T> {
                 if current == tail && pos_diff(tail, head) >= self.capacity() as isize {
                     return Err(TryPushError::Full(item));
                 }
-                // Waiting on a peer: snooze so a preempted consumer can run.
-                backoff.snooze();
+                // A peer is at most a few instructions from finishing.
+                backoff.spin();
                 tail = current;
             } else {
                 // Another producer already claimed this position; our `tail`
-                // is stale. Back off before reloading: under loom this is a
-                // yield, without which the model may return the stale value
-                // forever.
-                backoff.spin();
+                // is stale. Snooze (spin, then yield) before reloading, as
+                // crossbeam does. Under loom this is a yield, without which
+                // the model may return the stale value forever.
+                backoff.snooze();
                 tail = self.tail.load(Relaxed);
             }
         }
@@ -228,13 +228,13 @@ impl<T> LockFreeQueue<T> {
                         TryPopError::Closed
                     });
                 }
-                // Waiting on a peer: snooze so a preempted producer can run.
-                backoff.snooze();
+                // A peer is at most a few instructions from finishing.
+                backoff.spin();
                 head = self.head.load(Relaxed);
             } else {
-                // Another consumer already claimed this position; back off
+                // Another consumer already claimed this position; snooze
                 // and reload, as in `try_push`.
-                backoff.spin();
+                backoff.snooze();
                 head = self.head.load(Relaxed);
             }
         }

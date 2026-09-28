@@ -1,204 +1,167 @@
-use bounded_mpmc_queue::BlockingQueue;
-use bounded_mpmc_queue::LockFreeQueue;
-use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use std::sync::Arc;
-use std::thread;
+//! Throughput: items moved per second through a queue by P producers and C
+//! consumers.
+//!
+//! Worker threads are spawned once per configuration and reused for every
+//! iteration; each iteration releases them through a barrier and moves
+//! `ITEMS` items. The original benchmark spawned threads inside the timed
+//! loop and moved 100 items per thread, so thread creation dominated.
+#![allow(missing_docs)] // criterion_group! generates undocumented items
 
-fn bench_blocking(c: &mut Criterion, threads: usize, capacity: usize) {
-    let mut group = c.benchmark_group("blocking");
-    group.bench_with_input(
-        BenchmarkId::new(format!("threads_{threads}_cap_{capacity}"), ""),
-        &(threads, capacity),
-        |b, &(threads, capacity)| {
-            b.iter(|| {
-                let queue = Arc::new(BlockingQueue::new(capacity));
-                let mut handles = vec![];
-                for _ in 0..threads {
-                    let q = Arc::clone(&queue);
-                    handles.push(thread::spawn(move || {
-                        for i in 0..100 {
-                            q.push(i).unwrap();
-                        }
-                    }));
-                }
-                for _ in 0..threads {
-                    let q = Arc::clone(&queue);
-                    handles.push(thread::spawn(move || {
-                        for _ in 0..100 {
-                            q.pop().unwrap();
-                        }
-                    }));
-                }
-                for handle in handles {
-                    handle.join().unwrap();
-                }
-            });
-        },
-    );
-    group.finish();
+mod common;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Barrier};
+use std::thread::{self, JoinHandle};
+use std::time::{Duration, Instant};
+
+use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
+use common::{BenchQueue, Crossbeam, StdChannel};
+use criterion::measurement::WallTime;
+use criterion::{
+    BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
+};
+
+/// Items per timed iteration. Divisible by every producer/consumer count used.
+const ITEMS: u64 = 1 << 18;
+
+struct Pool {
+    start: Arc<Barrier>,
+    stop: Arc<AtomicBool>,
+    workers: Vec<JoinHandle<()>>,
 }
 
-fn bench_lockfree(c: &mut Criterion, threads: usize, capacity: usize) {
-    let mut group = c.benchmark_group("lockfree");
-    group.bench_with_input(
-        BenchmarkId::new(format!("threads_{threads}_cap_{capacity}"), ""),
-        &(threads, capacity),
-        |b, &(threads, capacity)| {
-            b.iter(|| {
-                let queue = Arc::new(LockFreeQueue::new(capacity));
-                let mut handles = vec![];
-                for _ in 0..threads {
-                    let q = Arc::clone(&queue);
-                    handles.push(thread::spawn(move || {
-                        for i in 0..100 {
-                            q.push(i).unwrap();
-                        }
-                    }));
-                }
-                for _ in 0..threads {
-                    let q = Arc::clone(&queue);
-                    handles.push(thread::spawn(move || {
-                        for _ in 0..100 {
-                            q.pop().unwrap();
-                        }
-                    }));
-                }
-                for handle in handles {
-                    handle.join().unwrap();
-                }
-            });
-        },
-    );
-    group.finish();
-}
-
-fn bench_asymmetric(c: &mut Criterion) {
-    let mut group = c.benchmark_group("asymmetric");
-    group.bench_function("lockfree_8producers_2consumers", |b| {
-        b.iter(|| {
-            let queue = Arc::new(LockFreeQueue::new(1024));
-            let mut handles = vec![];
-            for _ in 0..8 {
-                let q = Arc::clone(&queue);
-                handles.push(thread::spawn(move || {
-                    for i in 0..100 {
-                        q.push(i).unwrap();
+impl Pool {
+    fn new<Q: BenchQueue>(queue: &Arc<Q>, producers: usize, consumers: usize) -> Self {
+        let start = Arc::new(Barrier::new(producers + consumers + 1));
+        let stop = Arc::new(AtomicBool::new(false));
+        let mut workers = Vec::new();
+        let per_producer = ITEMS / producers as u64;
+        let per_consumer = ITEMS / consumers as u64;
+        for _ in 0..producers {
+            let (q, start, stop) = (Arc::clone(queue), Arc::clone(&start), Arc::clone(&stop));
+            workers.push(thread::spawn(move || {
+                loop {
+                    start.wait();
+                    if stop.load(Ordering::Acquire) {
+                        return;
                     }
-                }));
-            }
-            for _ in 0..2 {
-                let q = Arc::clone(&queue);
-                handles.push(thread::spawn(move || {
-                    for _ in 0..400 {
-                        q.pop().unwrap();
+                    for i in 0..per_producer {
+                        q.push(i);
                     }
-                }));
-            }
-            for handle in handles {
-                handle.join().unwrap();
-            }
-        });
-    });
-    group.bench_function("lockfree_1producer_8consumers", |b| {
-        b.iter(|| {
-            let queue = Arc::new(LockFreeQueue::new(1024));
-            let mut handles = vec![];
-            let q = Arc::clone(&queue);
-            handles.push(thread::spawn(move || {
-                for i in 0..800 {
-                    q.push(i).unwrap();
+                    start.wait();
                 }
             }));
-            for _ in 0..8 {
-                let q = Arc::clone(&queue);
-                handles.push(thread::spawn(move || {
-                    for _ in 0..100 {
-                        q.pop().unwrap();
+        }
+        for _ in 0..consumers {
+            let (q, start, stop) = (Arc::clone(queue), Arc::clone(&start), Arc::clone(&stop));
+            workers.push(thread::spawn(move || {
+                loop {
+                    start.wait();
+                    if stop.load(Ordering::Acquire) {
+                        return;
                     }
-                }));
-            }
-            for handle in handles {
-                handle.join().unwrap();
-            }
-        });
-    });
-    group.finish();
-}
-
-fn bench_scaling(c: &mut Criterion) {
-    let mut group = c.benchmark_group("scaling");
-    for threads in [1, 2, 4, 8, 16] {
-        group.bench_with_input(
-            BenchmarkId::new("blocking", threads),
-            &threads,
-            |b, &threads| {
-                b.iter(|| {
-                    let queue = Arc::new(BlockingQueue::new(1024));
-                    let mut handles = vec![];
-                    for _ in 0..threads {
-                        let q = Arc::clone(&queue);
-                        handles.push(thread::spawn(move || {
-                            for i in 0..100 {
-                                q.push(i).unwrap();
-                            }
-                        }));
+                    for _ in 0..per_consumer {
+                        black_box(q.pop());
                     }
-                    for _ in 0..threads {
-                        let q = Arc::clone(&queue);
-                        handles.push(thread::spawn(move || {
-                            for _ in 0..100 {
-                                q.pop().unwrap();
-                            }
-                        }));
-                    }
-                    for handle in handles {
-                        handle.join().unwrap();
-                    }
-                });
-            },
-        );
-        group.bench_with_input(
-            BenchmarkId::new("lockfree", threads),
-            &threads,
-            |b, &threads| {
-                b.iter(|| {
-                    let queue = Arc::new(LockFreeQueue::new(1024));
-                    let mut handles = vec![];
-                    for _ in 0..threads {
-                        let q = Arc::clone(&queue);
-                        handles.push(thread::spawn(move || {
-                            for i in 0..100 {
-                                q.push(i).unwrap();
-                            }
-                        }));
-                    }
-                    for _ in 0..threads {
-                        let q = Arc::clone(&queue);
-                        handles.push(thread::spawn(move || {
-                            for _ in 0..100 {
-                                q.pop().unwrap();
-                            }
-                        }));
-                    }
-                    for handle in handles {
-                        handle.join().unwrap();
-                    }
-                });
-            },
-        );
-    }
-    group.finish();
-}
-
-fn throughput_benchmark(c: &mut Criterion) {
-    for threads in [1, 2, 4, 8, 16] {
-        for capacity in [64, 256, 1024] {
-            bench_blocking(c, threads, capacity);
-            bench_lockfree(c, threads, capacity);
+                    start.wait();
+                }
+            }));
+        }
+        Self {
+            start,
+            stop,
+            workers,
         }
     }
-    bench_asymmetric(c);
-    bench_scaling(c);
+
+    /// Releases the workers and times until all of them finish.
+    fn run_once(&self) -> Duration {
+        self.start.wait();
+        let t = Instant::now();
+        self.start.wait();
+        t.elapsed()
+    }
 }
-criterion_group!(benches, throughput_benchmark);
+
+impl Drop for Pool {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        self.start.wait();
+        for w in self.workers.drain(..) {
+            w.join().unwrap();
+        }
+    }
+}
+
+fn bench<Q: BenchQueue>(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    producers: usize,
+    consumers: usize,
+    capacity: usize,
+) {
+    if !Q::supports(producers, consumers) {
+        return;
+    }
+    let queue = Arc::new(Q::with_capacity(capacity));
+    let pool = Pool::new(&queue, producers, consumers);
+    group.throughput(Throughput::Elements(ITEMS));
+    group.bench_function(
+        BenchmarkId::new(Q::NAME, format!("{producers}p{consumers}c_cap{capacity}")),
+        |b| b.iter_custom(|iters| (0..iters).map(|_| pool.run_once()).sum()),
+    );
+}
+
+fn all_queues(
+    group: &mut BenchmarkGroup<'_, WallTime>,
+    producers: usize,
+    consumers: usize,
+    capacity: usize,
+) {
+    bench::<LockFreeQueue<u64>>(group, producers, consumers, capacity);
+    bench::<Crossbeam>(group, producers, consumers, capacity);
+    bench::<BlockingQueue<u64>>(group, producers, consumers, capacity);
+    bench::<StdChannel>(group, producers, consumers, capacity);
+}
+
+fn spsc(c: &mut Criterion) {
+    let mut group = c.benchmark_group("spsc");
+    for capacity in [16, 256, 4096] {
+        all_queues(&mut group, 1, 1, capacity);
+    }
+    group.finish();
+}
+
+/// N producers + N consumers. 8+8 oversubscribes a 10-core machine.
+fn mpmc(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mpmc");
+    for n in [1, 2, 4, 8] {
+        all_queues(&mut group, n, n, 256);
+    }
+    group.finish();
+}
+
+fn asymmetric(c: &mut Criterion) {
+    let mut group = c.benchmark_group("asymmetric");
+    all_queues(&mut group, 8, 1, 256);
+    all_queues(&mut group, 8, 2, 256);
+    all_queues(&mut group, 2, 8, 256);
+    group.finish();
+}
+
+fn capacity(c: &mut Criterion) {
+    let mut group = c.benchmark_group("capacity");
+    for capacity in [16, 256, 4096] {
+        all_queues(&mut group, 4, 4, capacity);
+    }
+    group.finish();
+}
+
+criterion_group! {
+    name = benches;
+    config = Criterion::default()
+        .warm_up_time(Duration::from_secs(1))
+        .measurement_time(Duration::from_secs(4))
+        .sample_size(20);
+    targets = spsc, mpmc, asymmetric, capacity
+}
 criterion_main!(benches);

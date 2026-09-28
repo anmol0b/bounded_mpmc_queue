@@ -30,6 +30,9 @@ serde_json = "1"
 name = "throughput"
 harness = false
 
+[[bench]]
+name = "latency"
+harness = false
 
 [profile.bench]
 lto = "fat"
