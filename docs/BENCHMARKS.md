@@ -4,14 +4,14 @@ All numbers were measured on an Apple M4 (4 performance + 6 efficiency cores,
 16 GB), macOS 27, Rust 1.92, with `cargo bench`. They are reproducible:
 
 ```sh
-cargo bench --bench throughput
-cargo bench --bench latency
-cargo run --release --example plot   # rewrites assets/*.svg, prints these tables
+cargo bench -p parkring-bench --bench throughput
+cargo bench -p parkring-bench --bench latency
+cargo run -p parkring-bench --release --example plot   # rewrites assets/*.svg, prints these tables
 ```
 
 ## Methodology
 
-**Throughput** (`benches/throughput.rs`). For each queue and shape, P producer
+**Throughput** (`crates/parkring-bench/benches/throughput.rs`). For each queue and shape, P producer
 and C consumer threads are spawned once and reused. Each timed iteration
 releases them through a `Barrier`, moves 262,144 items, and waits for all of
 them at a second barrier. Criterion reports the median time per iteration, which
@@ -22,7 +22,7 @@ The original benchmark spawned up to 32 threads inside every timed iteration
 and moved 100 items per thread. Its numbers mostly measured `thread::spawn`,
 which is why they showed the two queues "tied" at low thread counts.
 
-**Wake latency** (`benches/latency.rs`). A consumer blocks on an empty queue.
+**Wake latency** (`crates/parkring-bench/benches/latency.rs`). A consumer blocks on an empty queue.
 Every 2 ms the producer pushes one item and measures how long until the
 consumer returns from `pop`. The gap is long enough for parking queues to park,
 so this is the cost of waking a parked thread. Process CPU time over the run

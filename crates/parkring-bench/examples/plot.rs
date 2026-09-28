@@ -1,8 +1,8 @@
 //! Regenerates the benchmark charts in `assets/` and prints Markdown tables.
 //!
 //! ```text
-//! cargo bench --bench throughput && cargo bench --bench latency
-//! cargo run --release --example plot
+//! cargo bench -p parkring-bench
+//! cargo run -p parkring-bench --release --example plot
 //! ```
 //!
 //! Reads criterion's `target/criterion/**/new/{benchmark,estimates}.json` and
@@ -355,9 +355,8 @@ fn table(title: &str, samples: &[Sample]) {
 }
 
 fn main() -> Res<()> {
-    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let target = manifest.join("target");
-    let assets = manifest.join("assets");
+    let target = parkring_bench::target_dir();
+    let assets = parkring_bench::workspace_root().join("assets");
     fs::create_dir_all(&assets)?;
 
     let groups = load_throughput(&target.join("criterion"))

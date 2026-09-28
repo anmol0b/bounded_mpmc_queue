@@ -1,0 +1,30 @@
+[package]
+name = "parkring-bench"
+description = "Benchmarks and chart generation for parkring. Not published."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+parkring.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+crossbeam-queue.workspace = true
+libc.workspace = true
+plotters.workspace = true
+serde_json.workspace = true
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "latency"
+harness = false

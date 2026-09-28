@@ -10,9 +10,9 @@
 //! the interesting numbers are percentiles and CPU, not a mean.
 //!
 //! ```text
-//! cargo bench --bench latency
+//! cargo bench -p parkring-bench --bench latency
 //! ```
-//! Writes `target/latency/latency.json` for `cargo run --example plot`.
+//! Writes `target/latency/latency.json` for `cargo run -p parkring-bench --example plot`.
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
@@ -121,7 +121,7 @@ fn main() {
             )
         })
         .collect();
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/latency");
+    let dir = parkring_bench::target_dir().join("latency");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("latency.json"),

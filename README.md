@@ -117,7 +117,8 @@ cargo test                                               # 82 tests + doctests
 cargo test --release --test cpu_burn -- --ignored        # idle CPU check
 RUSTFLAGS="--cfg loom" cargo test --release --test loom  # model checking
 cargo +nightly miri test --lib --test drop_semantics --test regressions
-cargo bench && cargo run --release --example plot        # regenerate charts
+cargo bench -p parkring-bench                           # benchmarks
+cargo run -p parkring-bench --release --example plot     # regenerate charts
 ```
 
 ## Project history
@@ -142,8 +143,9 @@ src/
   sync/pos.rs          63-bit position arithmetic and the closed bit
   sync/backoff.rs      spin / snooze / park backoff
 tests/                 loom, proptest, drop accounting, regressions, CPU check
-benches/               throughput (criterion) and wake latency (custom harness)
-examples/plot.rs       regenerates assets/*.svg from benchmark output
+crates/parkring-bench/ benchmarks (unpublished workspace member)
+  benches/             throughput (criterion) and wake latency (custom harness)
+  examples/plot.rs     regenerates assets/*.svg from benchmark output
 ```
 
 ## Not yet

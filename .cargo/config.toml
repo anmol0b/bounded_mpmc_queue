@@ -1,3 +1,3 @@
 [alias]
 # Requires RUSTFLAGS="--cfg loom" in the environment.
-loom = "test --release --test loom"
+loom = "test -p parkring --release --test loom"
