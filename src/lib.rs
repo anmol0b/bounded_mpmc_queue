@@ -1,4 +1,7 @@
-//! Bounded multi-producer multi-consumer queues, in std-only Rust.
+//! Bounded multi-producer multi-consumer queues.
+//!
+//! The only dependency is `libc`, used on Linux, Android and macOS to park
+//! threads on a futex. Other platforms use std's `Mutex` and `Condvar`.
 //!
 //! | | [`LockFreeQueue`] | [`BlockingQueue`] |
 //! |---|---|---|

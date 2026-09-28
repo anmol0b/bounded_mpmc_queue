@@ -254,8 +254,9 @@ impl<T> LockFreeQueue<T> {
     }
 
     /// Wake condition for parked producers: the mirror image on `head`.
-    /// Closing is seen through the mutex `close` takes, so a stale `tail`
-    /// is harmless here too.
+    /// `close` wakes every parked thread through the wait queue, which makes
+    /// the closed flag visible (via the mutex in the fallback, via the epoch's
+    /// Release/Acquire pair with a futex), so a stale `tail` is harmless.
     fn push_ready(&self) -> bool {
         let head = self.head.fetch_add(0, AcqRel);
         let tail = self.tail.load(Relaxed);

@@ -7,17 +7,21 @@
 //!
 //! [loom]: https://docs.rs/loom
 
+// Not every configuration uses every primitive (e.g. `AtomicU32` is only
+// needed by the futex parker).
 #[cfg(loom)]
+#[allow(unused_imports)]
 pub(crate) use loom::{
     cell::UnsafeCell,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU32, AtomicUsize, Ordering, fence},
     sync::{Condvar, Mutex, MutexGuard},
     thread,
 };
 
 #[cfg(not(loom))]
+#[allow(unused_imports)]
 pub(crate) use std::{
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicU32, AtomicUsize, Ordering, fence},
     sync::{Condvar, Mutex, MutexGuard},
     thread,
 };

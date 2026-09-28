@@ -4,7 +4,9 @@
 ![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-blue)
 ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Bounded multi-producer multi-consumer queues in std-only Rust.
+Bounded multi-producer multi-consumer queues in Rust. Waiting threads park on a
+futex (Linux, Android, macOS) or a `Condvar` elsewhere; the only dependency is
+`libc`.
 
 * **`LockFreeQueue`**: Dmitry Vyukov's per-slot sequence ring. The fast path is
   one CAS plus one `Release` store with no locks. Blocked threads spin briefly,
@@ -50,7 +52,7 @@ failed push hands the item back. `try_*` never fails spuriously: `Full` and
 | | `LockFreeQueue` | `BlockingQueue` |
 |---|---|---|
 | Fast path | one CAS + one `Release` store | one mutex acquisition |
-| Waiting | spin, yield, then park | park |
+| Waiting | spin, yield, then park on a futex | park |
 | Capacity | next power of two, minimum 2 | exact |
 | Scales with threads | yes | serialises on the mutex |
 

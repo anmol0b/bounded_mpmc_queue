@@ -32,6 +32,9 @@ use parkring::{BlockingQueue, LockFreeQueue};
 const SAMPLES: usize = 2000;
 const GAP: Duration = Duration::from_millis(2);
 
+/// Process CPU time (user + system). Unix only; elsewhere the idle-CPU
+/// column reads 0 and only latency is meaningful.
+#[cfg(unix)]
 fn cpu_time() -> Duration {
     // SAFETY: `getrusage` only writes into the zeroed struct we pass it.
     let usage = unsafe {
@@ -44,6 +47,11 @@ fn cpu_time() -> Duration {
             + Duration::from_micros(u64::try_from(t.tv_usec).unwrap_or(0))
     };
     tv(usage.ru_utime) + tv(usage.ru_stime)
+}
+
+#[cfg(not(unix))]
+fn cpu_time() -> Duration {
+    Duration::ZERO
 }
 
 struct Report {

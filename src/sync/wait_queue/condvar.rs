@@ -1,4 +1,4 @@
-//! Parking for threads that ran out of spin budget.
+//! `Mutex` + `Condvar` parking: the portable fallback.
 
 use std::sync::PoisonError;
 use std::time::Instant;

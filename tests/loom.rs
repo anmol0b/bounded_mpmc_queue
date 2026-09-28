@@ -260,6 +260,45 @@ fn drop_on_another_thread_sees_published_items() {
     });
 }
 
+/// Two consumers park; one push wakes one of them; `close` must still wake
+/// the other. With the futex parker this exercises `notify_all` racing a
+/// thread that was woken by `notify_one` but has not re-checked yet.
+#[test]
+fn close_after_one_of_two_parked_consumers_is_served() {
+    model_with_bound(1, || {
+        let q = Arc::new(LockFreeQueue::new(2));
+        let consumers: Vec<_> = (0..2)
+            .map(|_| {
+                let q = q.clone();
+                thread::spawn(move || q.pop())
+            })
+            .collect();
+        q.push(1).unwrap();
+        q.close();
+        let got: Vec<_> = consumers.into_iter().map(|c| c.join().unwrap()).collect();
+        assert!(
+            got == [Ok(1), Err(PopError)] || got == [Err(PopError), Ok(1)],
+            "{got:?}"
+        );
+    });
+}
+
+/// A timed pop with a deadline far in the future racing a push. Loom does not
+/// model time, so this checks that the timed path's re-check and parking are
+/// as sound as the untimed one.
+#[test]
+fn timed_pop_racing_a_push() {
+    model(|| {
+        let q = Arc::new(LockFreeQueue::new(2));
+        let consumer = {
+            let q = q.clone();
+            thread::spawn(move || q.pop_timeout(std::time::Duration::from_secs(3600)))
+        };
+        q.push(9).unwrap();
+        assert_eq!(consumer.join().unwrap(), Ok(9));
+    });
+}
+
 /// The blocking queue goes through the same shim, so loom checks it too.
 #[test]
 fn blocking_queue_close_wakes_consumer_and_drains() {

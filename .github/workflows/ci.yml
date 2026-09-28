@@ -25,6 +25,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets
+      - name: portable fallback compiles (FreeBSD uses Mutex + Condvar parking)
+        run: |
+          rustup target add x86_64-unknown-freebsd
+          cargo check -p parkring --lib --target x86_64-unknown-freebsd
       - name: std sync primitives only via src/sync/primitives.rs
         run: |
           if grep -rnE 'std::(sync::(atomic|Mutex|Condvar|MutexGuard)|cell::UnsafeCell)' src \
@@ -38,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable, beta]
     runs-on: ${{ matrix.os }}
     steps:
@@ -50,6 +54,7 @@ jobs:
       - run: cargo test --workspace --all-targets
       - run: cargo test --workspace --doc
       - name: parked threads use no CPU
+        if: runner.os != 'Windows'
         run: cargo test -p parkring --release --test cpu_burn -- --ignored --nocapture
         # Shared CI runners are noisy; keep this informational.
         continue-on-error: true
@@ -73,17 +78,25 @@ jobs:
       - run: cargo doc --no-deps -p parkring
 
   loom:
-    name: loom model checking
+    name: loom (${{ matrix.parker }} parker)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - parker: futex
+            cfg: --cfg loom
+          - parker: condvar
+            cfg: --cfg loom --cfg parkring_force_condvar
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: --cfg loom -D warnings
+      RUSTFLAGS: ${{ matrix.cfg }} -D warnings
       LOOM_MAX_PREEMPTIONS: 3
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: loom
+          key: loom-${{ matrix.parker }}
       - run: cargo test -p parkring --release --test loom
 
   miri:

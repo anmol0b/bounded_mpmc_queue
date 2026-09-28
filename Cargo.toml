@@ -23,7 +23,7 @@ serde_json = "1"
 unsafe_op_in_unsafe_fn = "deny"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)", "cfg(parkring_force_condvar)"] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
@@ -51,9 +51,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bounded multi-producer multi-consumer queues in std-only Rust: a Vyukov-style lock-free ring with spin-then-park waiting, and a Mutex+Condvar reference implementation."
+description = "Bounded multi-producer multi-consumer queues: a Vyukov-style lock-free ring with futex-based spin-then-park waiting, verified with loom and Miri."
 readme = "README.md"
-keywords = ["mpmc", "queue", "lock-free", "concurrency", "ring-buffer"]
+keywords = ["mpmc", "queue", "lock-free", "futex", "concurrency"]
 categories = ["concurrency", "data-structures"]
 exclude = ["assets/", "docs/", ".github/", "crates/"]
 
@@ -61,7 +61,10 @@ exclude = ["assets/", "docs/", ".github/", "crates/"]
 workspace = true
 
 [dependencies]
-# Intentionally empty: the library is std-only.
+
+# Futex-based parking. Other targets use std's Mutex + Condvar.
+[target.'cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))'.dependencies]
+libc.workspace = true
 
 # Only compiled under `RUSTFLAGS="--cfg loom"`; never part of a downstream build.
 [target.'cfg(loom)'.dependencies]

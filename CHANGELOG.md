@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Breaking:** the crate is renamed from `bounded_mpmc_queue` to `parkring`.
+  Replace `use bounded_mpmc_queue::…` with `use parkring::…`.
+- The repository is a Cargo workspace; benchmarks and chart generation live in
+  the unpublished `crates/parkring-bench`.
+- Parked threads sleep on a futex: `futex(2)` on Linux and Android,
+  `__ulock_wait`/`__ulock_wake` on macOS. Other platforms, and builds with
+  `--cfg parkring_force_condvar`, keep the `Mutex` + `Condvar` parker. The
+  crate now depends on `libc` on those three targets.
+
+### Performance
+- Median wake latency of a parked consumer on an Apple M4 drops about 10%
+  (8.5–8.8 µs against 9.4–10.0 µs), with a lower p99.
+
+### Added
+- Loom models for `close` after one of two parked consumers is woken, and for
+  a timed pop racing a push. CI runs the loom suite against both parkers.
+- CI tests on Windows and type-checks FreeBSD, both on the portable parker.
+
 ## [0.2.0] - 2026-09-28
 
 A production-hardening pass over the original take-home submission. See
