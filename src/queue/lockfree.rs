@@ -10,7 +10,7 @@ use crate::queue::slot::Slot;
 use crate::sync::pos::{CLOSED_BIT, MAX_CAPACITY, POS_MASK, pos_add, pos_diff};
 use crate::sync::{
     AtomicUsize, Backoff,
-    Ordering::{Acquire, Relaxed, Release, SeqCst},
+    Ordering::{AcqRel, Acquire, Relaxed, Release},
     WaitQueue,
 };
 use crate::traits::forward_bounded_queue;
@@ -23,12 +23,12 @@ use crate::utils::CachePadded;
 ///   consumers working on different slots never touch the same cache line.
 /// * **Slow path:** `push` and `pop` spin briefly, then yield, then **park**
 ///   on a condition variable. A thread waiting on an idle queue uses no CPU.
-///   Parking costs the fast path one `SeqCst` load of a read-mostly counter.
+///   Parking costs the fast path one `Relaxed` load of a read-mostly counter.
 /// * **Shutdown:** [`close`](Self::close) rejects further pushes, wakes every
 ///   parked thread, and lets consumers drain what is left.
 ///
-/// Capacity is rounded up to the next power of two so slot indexing is a
-/// bitwise AND.
+/// Capacity is rounded up to the next power of two (minimum 2) so slot
+/// indexing is a bitwise AND.
 ///
 /// # Progress guarantee
 ///
@@ -75,7 +75,7 @@ pub struct LockFreeQueue<T> {
 
 impl<T> LockFreeQueue<T> {
     /// Creates a queue holding at least `capacity` items, rounded up to the
-    /// next power of two.
+    /// next power of two, with a minimum of 2.
     ///
     /// # Panics
     /// If `capacity` is zero or larger than `2^(usize::BITS - 3)`.
@@ -89,7 +89,11 @@ impl<T> LockFreeQueue<T> {
         assert!(capacity > 0, "capacity must be non-zero");
         assert!(capacity <= MAX_CAPACITY, "capacity too large");
         debug_assert_eq!(start & CLOSED_BIT, 0);
-        let capacity = capacity.next_power_of_two();
+        // A one-slot ring cannot work: the "full" sequence of lap `n`
+        // (`pos + 1`) would equal the "empty" sequence of lap `n + 1`, so a
+        // producer would overwrite a live item. Vyukov's original asserts a
+        // buffer size of at least two for the same reason.
+        let capacity = capacity.next_power_of_two().max(2);
         let mask = capacity - 1;
         // Slot `i` starts at the unique position in [start, start + cap) that
         // maps to it, in the "empty for this lap" state (`sequence == pos`).
@@ -106,7 +110,7 @@ impl<T> LockFreeQueue<T> {
         }
     }
 
-    /// The number of slots (a power of two).
+    /// The number of slots: a power of two, at least 2.
     #[inline]
     pub fn capacity(&self) -> usize {
         self.mask + 1
@@ -135,12 +139,12 @@ impl<T> LockFreeQueue<T> {
             let seq = slot.sequence.load(Acquire);
             let diff = pos_diff(seq, tail);
             if diff == 0 {
-                // Slot is empty for this lap. Claim it. SeqCst pairs with the
-                // waiter-count load in `WaitQueue::notify_one`; it costs
-                // nothing extra over AcqRel on x86-64 and AArch64.
+                // Slot is empty for this lap. Claim it. The Acquire half of
+                // AcqRel is what makes a parked consumer's registration
+                // visible to `notify_one` below (see `WaitQueue`).
                 match self
                     .tail
-                    .compare_exchange_weak(tail, pos_add(tail, 1), SeqCst, Relaxed)
+                    .compare_exchange_weak(tail, pos_add(tail, 1), AcqRel, Relaxed)
                 {
                     Ok(_) => {
                         // SAFETY: we won the tail CAS having observed
@@ -159,15 +163,20 @@ impl<T> LockFreeQueue<T> {
                 // The slot still holds last lap's item: either the queue is
                 // full, or a consumer is between its head CAS and its recycle
                 // store. Only the first is a reason to fail.
-                let head = self.head.load(SeqCst);
+                let head = self.head.load(Acquire);
                 let current = self.tail.load(Relaxed);
                 if current == tail && pos_diff(tail, head) >= self.capacity() as isize {
                     return Err(TryPushError::Full(item));
                 }
-                backoff.spin();
+                // Waiting on a peer: snooze so a preempted consumer can run.
+                backoff.snooze();
                 tail = current;
             } else {
-                // Another producer already claimed this position.
+                // Another producer already claimed this position; our `tail`
+                // is stale. Back off before reloading: under loom this is a
+                // yield, without which the model may return the stale value
+                // forever.
+                backoff.spin();
                 tail = self.tail.load(Relaxed);
             }
         }
@@ -192,7 +201,7 @@ impl<T> LockFreeQueue<T> {
                 // Slot holds the item pushed at `head`. Claim it.
                 match self
                     .head
-                    .compare_exchange_weak(head, pos_add(head, 1), SeqCst, Relaxed)
+                    .compare_exchange_weak(head, pos_add(head, 1), AcqRel, Relaxed)
                 {
                     Ok(_) => {
                         // SAFETY: we won the head CAS having observed
@@ -211,7 +220,7 @@ impl<T> LockFreeQueue<T> {
             } else if diff < 0 {
                 // Not published for this lap: either the queue is empty, or a
                 // producer is between its tail CAS and its publish.
-                let tail = self.tail.load(SeqCst);
+                let tail = self.tail.load(Acquire);
                 if tail & POS_MASK == head {
                     return Err(if tail & CLOSED_BIT == 0 {
                         TryPopError::Empty
@@ -219,27 +228,37 @@ impl<T> LockFreeQueue<T> {
                         TryPopError::Closed
                     });
                 }
-                backoff.spin();
+                // Waiting on a peer: snooze so a preempted producer can run.
+                backoff.snooze();
                 head = self.head.load(Relaxed);
             } else {
-                // Another consumer already claimed this position.
+                // Another consumer already claimed this position; back off
+                // and reload, as in `try_push`.
+                backoff.spin();
                 head = self.head.load(Relaxed);
             }
         }
     }
 
-    /// Wake condition for parked consumers. The `SeqCst` loads complete the
-    /// store-buffering pair described on `WaitQueue`.
+    /// Wake condition for parked consumers.
+    ///
+    /// Reads `tail` with an RMW rather than a load: an RMW always sees the
+    /// latest value, and it forms the release sequence that lets a producer's
+    /// CAS see this consumer's registration. That pairing is what rules out a
+    /// lost wakeup (see `WaitQueue`). A stale `head` can only make this
+    /// return `true` spuriously, which is harmless.
     fn pop_ready(&self) -> bool {
-        let tail = self.tail.load(SeqCst);
-        let head = self.head.load(SeqCst);
+        let tail = self.tail.fetch_add(0, AcqRel);
+        let head = self.head.load(Relaxed);
         tail & CLOSED_BIT != 0 || tail & POS_MASK != head
     }
 
-    /// Wake condition for parked producers.
+    /// Wake condition for parked producers: the mirror image on `head`.
+    /// Closing is seen through the mutex `close` takes, so a stale `tail`
+    /// is harmless here too.
     fn push_ready(&self) -> bool {
-        let tail = self.tail.load(SeqCst);
-        let head = self.head.load(SeqCst);
+        let head = self.head.fetch_add(0, AcqRel);
+        let tail = self.tail.load(Relaxed);
         tail & CLOSED_BIT != 0 || pos_diff(tail, head) < self.capacity() as isize
     }
 
@@ -340,7 +359,7 @@ impl<T> LockFreeQueue<T> {
     /// before the close (and its item will be popped) or its CAS fails and it
     /// returns `Closed`. A separate flag could not give that guarantee.
     pub fn close(&self) -> bool {
-        let previous = self.tail.fetch_or(CLOSED_BIT, SeqCst);
+        let previous = self.tail.fetch_or(CLOSED_BIT, AcqRel);
         let newly_closed = previous & CLOSED_BIT == 0;
         if newly_closed {
             self.consumers.notify_all();
@@ -351,17 +370,17 @@ impl<T> LockFreeQueue<T> {
 
     /// Returns `true` once [`close`](Self::close) has been called.
     pub fn is_closed(&self) -> bool {
-        self.tail.load(SeqCst) & CLOSED_BIT != 0
+        self.tail.load(Acquire) & CLOSED_BIT != 0
     }
 
     /// A snapshot of the number of items in the queue.
     pub fn len(&self) -> usize {
         loop {
-            let tail = self.tail.load(SeqCst);
-            let head = self.head.load(SeqCst);
+            let tail = self.tail.load(Acquire);
+            let head = self.head.load(Acquire);
             // A consistent snapshot requires `tail` not to move while `head`
             // was read.
-            if self.tail.load(SeqCst) == tail {
+            if self.tail.load(Acquire) == tail {
                 let len = pos_diff(tail, head).clamp(0, self.capacity() as isize);
                 return len.unsigned_abs();
             }

@@ -3,7 +3,7 @@
 use std::sync::PoisonError;
 use std::time::Instant;
 
-use crate::sync::{AtomicUsize, Condvar, Mutex, MutexGuard, Ordering::SeqCst};
+use crate::sync::{AtomicUsize, Condvar, Mutex, MutexGuard, Ordering::Relaxed};
 use crate::utils::CachePadded;
 
 /// A set of parked threads waiting for a queue condition to become true.
@@ -14,22 +14,33 @@ use crate::utils::CachePadded;
 /// mutex protects no data; it exists only so that "recheck the condition,
 /// then block" is atomic with respect to [`notify_one`](Self::notify_one).
 ///
-/// A waiter registers (`waiters += 1`, `SeqCst`), then re-evaluates `ready`,
-/// whose loads are `SeqCst`. A notifier performs its state change with a
-/// `SeqCst` RMW (the head/tail CAS), then loads `waiters` with `SeqCst`.
-/// All four operations sit in the single `SeqCst` total order, so it is
-/// impossible for the notifier to see zero waiters *and* the waiter to miss
-/// the state change: the store-buffering outcome is forbidden. Whichever
-/// happens first, either the waiter sees the new state and never blocks, or
-/// the notifier sees the waiter and takes the lock to wake it.
+/// The hazard is a lost wakeup: the waiter checks the queue (empty), the
+/// notifier makes it non-empty and checks `waiters` (zero), and the waiter
+/// then blocks forever. It is ruled out as follows, taking a parked consumer
+/// and a producer as the example (the producer side mirrors it on `head`):
+///
+/// 1. The waiter registers (`waiters += 1`), then re-checks the queue with an
+///    `AcqRel` read-modify-write on `tail` (`fetch_add(0)`), not a load.
+/// 2. The notifier advances `tail` with an `AcqRel` CAS, then loads
+///    `waiters` (`Relaxed`).
+///
+/// Both are RMWs on `tail`, so one precedes the other in its modification
+/// order. If the notifier's CAS is first, the waiter's RMW reads its value
+/// (an RMW always reads the latest value) and the waiter does not block. If
+/// the waiter's RMW is first, the notifier's CAS reads from that RMW's
+/// release sequence and synchronises with it, so the registration happens
+/// before the notifier's load of `waiters`, which must see it.
 ///
 /// The remaining window, between the waiter's recheck and its block, is
 /// closed by the mutex: the waiter holds it from registration until
 /// `Condvar::wait` atomically releases it, and the notifier must acquire it
 /// before calling `notify_one`.
 ///
-/// Downgrading any of the four `SeqCst` operations to `Acquire`/`Release`
-/// reintroduces the lost wakeup; the loom suite catches it.
+/// An earlier version paired `SeqCst` loads with `SeqCst` RMWs instead. That
+/// is also correct in C11, but loom treats `SeqCst` accesses as `AcqRel` and
+/// could not verify it. This formulation is checked by loom, and it keeps
+/// `SeqCst` off the hot path: a successful push or pop pays one `Relaxed`
+/// load when nobody is parked.
 #[derive(Debug)]
 pub(crate) struct WaitQueue {
     /// Threads currently inside [`wait_until`](Self::wait_until). Read on
@@ -54,11 +65,14 @@ impl WaitQueue {
         self.lock.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Wakes one parked thread, if any. Costs a single `SeqCst` load when
+    /// Wakes one parked thread, if any. Costs a single `Relaxed` load when
     /// nobody is parked, which is the common case on the hot path.
+    ///
+    /// The caller must have published its state change with an `AcqRel` RMW
+    /// on the word the waiters' `ready` check reads with an RMW.
     #[inline]
     pub(crate) fn notify_one(&self) {
-        if self.waiters.load(SeqCst) == 0 {
+        if self.waiters.load(Relaxed) == 0 {
             return;
         }
         let _guard = self.guard();
@@ -74,6 +88,9 @@ impl WaitQueue {
 
     /// Blocks until `ready()` returns `true` or `deadline` passes.
     ///
+    /// `ready` must observe the queue state through an `AcqRel` RMW (see the
+    /// type-level docs). Registration is ordered before it by program order.
+    ///
     /// Returns `true` if `ready()` was observed to be `true`. `ready` is always
     /// evaluated before the deadline check, so a wakeup that races with the
     /// timeout resolves in favour of the caller making progress.
@@ -83,7 +100,7 @@ impl WaitQueue {
         deadline: Option<Instant>,
     ) -> bool {
         let mut guard = self.guard();
-        self.waiters.fetch_add(1, SeqCst);
+        self.waiters.fetch_add(1, Relaxed);
         let observed = loop {
             if ready() {
                 break true;
@@ -105,7 +122,7 @@ impl WaitQueue {
                 }
             }
         };
-        self.waiters.fetch_sub(1, SeqCst);
+        self.waiters.fetch_sub(1, Relaxed);
         drop(guard);
         observed
     }

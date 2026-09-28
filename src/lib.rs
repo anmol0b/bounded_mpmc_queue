@@ -4,7 +4,7 @@
 //! |---|---|---|
 //! | Fast path | one CAS + one `Release` store, no lock | one mutex acquisition |
 //! | Waiting | spin, yield, then park on a condvar | park on a condvar |
-//! | Capacity | rounded up to a power of two | exact |
+//! | Capacity | rounded up to a power of two, minimum 2 | exact |
 //! | Scales with threads | yes | serialises on the mutex |
 //!
 //! Both implement [`BoundedQueue`] and share one API:

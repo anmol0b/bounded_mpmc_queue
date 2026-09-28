@@ -9,7 +9,7 @@ use crate::error::{
 /// A bounded, closable, multi-producer multi-consumer FIFO queue.
 ///
 /// Construction is left to each implementation because capacity semantics
-/// differ: [`LockFreeQueue`](crate::LockFreeQueue) rounds up to a power of two,
+/// differ: [`LockFreeQueue`](crate::LockFreeQueue) rounds up to a power of two (minimum 2),
 /// [`BlockingQueue`](crate::BlockingQueue) uses the exact value.
 ///
 /// # Closing
