@@ -77,3 +77,8 @@ pub use error::{
 pub use queue::{BlockingQueue, LockFreeQueue};
 pub use sync::Backoff;
 pub use traits::BoundedQueue;
+
+/// Compiles and runs the README's code examples as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
