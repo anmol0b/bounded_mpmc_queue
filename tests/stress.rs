@@ -1,5 +1,5 @@
-use bounded_mpmc_queue::queue::blocking::BlockingQueue;
-use bounded_mpmc_queue::queue::lockfree::LockFreeQueue;
+use bounded_mpmc_queue::BlockingQueue;
+use bounded_mpmc_queue::LockFreeQueue;
 use std::{
     sync::{
         Arc,
@@ -16,7 +16,7 @@ fn no_items_lost_under_heavy_contention_lockfree() {
         let q = Arc::clone(&queue);
         handles.push(thread::spawn(move || {
             for i in 0..1000 {
-                q.push(i);
+                q.push(i).unwrap();
             }
         }));
     }
@@ -26,7 +26,7 @@ fn no_items_lost_under_heavy_contention_lockfree() {
         let c = Arc::clone(&count);
         handles.push(thread::spawn(move || {
             for _ in 0..1000 {
-                q.pop();
+                q.pop().unwrap();
                 c.fetch_add(1, Ordering::Relaxed);
             }
         }));
@@ -46,7 +46,7 @@ fn no_items_lost_under_heavy_contention_blocking() {
         let q = Arc::clone(&queue);
         handles.push(thread::spawn(move || {
             for i in 0..1000 {
-                q.push(i);
+                q.push(i).unwrap();
             }
         }));
     }
@@ -56,7 +56,7 @@ fn no_items_lost_under_heavy_contention_blocking() {
         let c = Arc::clone(&count);
         handles.push(thread::spawn(move || {
             for _ in 0..1000 {
-                q.pop();
+                q.pop().unwrap();
                 c.fetch_add(1, Ordering::Relaxed);
             }
         }));

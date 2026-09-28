@@ -1,5 +1,5 @@
-use bounded_mpmc_queue::queue::blocking::BlockingQueue;
-use bounded_mpmc_queue::queue::lockfree::LockFreeQueue;
+use bounded_mpmc_queue::BlockingQueue;
+use bounded_mpmc_queue::LockFreeQueue;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::sync::Arc;
 use std::thread;
@@ -17,7 +17,7 @@ fn bench_blocking(c: &mut Criterion, threads: usize, capacity: usize) {
                     let q = Arc::clone(&queue);
                     handles.push(thread::spawn(move || {
                         for i in 0..100 {
-                            q.push(i);
+                            q.push(i).unwrap();
                         }
                     }));
                 }
@@ -25,7 +25,7 @@ fn bench_blocking(c: &mut Criterion, threads: usize, capacity: usize) {
                     let q = Arc::clone(&queue);
                     handles.push(thread::spawn(move || {
                         for _ in 0..100 {
-                            q.pop();
+                            q.pop().unwrap();
                         }
                     }));
                 }
@@ -51,7 +51,7 @@ fn bench_lockfree(c: &mut Criterion, threads: usize, capacity: usize) {
                     let q = Arc::clone(&queue);
                     handles.push(thread::spawn(move || {
                         for i in 0..100 {
-                            q.push(i);
+                            q.push(i).unwrap();
                         }
                     }));
                 }
@@ -59,7 +59,7 @@ fn bench_lockfree(c: &mut Criterion, threads: usize, capacity: usize) {
                     let q = Arc::clone(&queue);
                     handles.push(thread::spawn(move || {
                         for _ in 0..100 {
-                            q.pop();
+                            q.pop().unwrap();
                         }
                     }));
                 }
@@ -82,7 +82,7 @@ fn bench_asymmetric(c: &mut Criterion) {
                 let q = Arc::clone(&queue);
                 handles.push(thread::spawn(move || {
                     for i in 0..100 {
-                        q.push(i);
+                        q.push(i).unwrap();
                     }
                 }));
             }
@@ -90,7 +90,7 @@ fn bench_asymmetric(c: &mut Criterion) {
                 let q = Arc::clone(&queue);
                 handles.push(thread::spawn(move || {
                     for _ in 0..400 {
-                        q.pop();
+                        q.pop().unwrap();
                     }
                 }));
             }
@@ -106,14 +106,14 @@ fn bench_asymmetric(c: &mut Criterion) {
             let q = Arc::clone(&queue);
             handles.push(thread::spawn(move || {
                 for i in 0..800 {
-                    q.push(i);
+                    q.push(i).unwrap();
                 }
             }));
             for _ in 0..8 {
                 let q = Arc::clone(&queue);
                 handles.push(thread::spawn(move || {
                     for _ in 0..100 {
-                        q.pop();
+                        q.pop().unwrap();
                     }
                 }));
             }
@@ -139,7 +139,7 @@ fn bench_scaling(c: &mut Criterion) {
                         let q = Arc::clone(&queue);
                         handles.push(thread::spawn(move || {
                             for i in 0..100 {
-                                q.push(i);
+                                q.push(i).unwrap();
                             }
                         }));
                     }
@@ -147,7 +147,7 @@ fn bench_scaling(c: &mut Criterion) {
                         let q = Arc::clone(&queue);
                         handles.push(thread::spawn(move || {
                             for _ in 0..100 {
-                                q.pop();
+                                q.pop().unwrap();
                             }
                         }));
                     }
@@ -168,7 +168,7 @@ fn bench_scaling(c: &mut Criterion) {
                         let q = Arc::clone(&queue);
                         handles.push(thread::spawn(move || {
                             for i in 0..100 {
-                                q.push(i);
+                                q.push(i).unwrap();
                             }
                         }));
                     }
@@ -176,7 +176,7 @@ fn bench_scaling(c: &mut Criterion) {
                         let q = Arc::clone(&queue);
                         handles.push(thread::spawn(move || {
                             for _ in 0..100 {
-                                q.pop();
+                                q.pop().unwrap();
                             }
                         }));
                     }

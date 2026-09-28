@@ -1,4 +1,4 @@
-use bounded_mpmc_queue::queue::lockfree::LockFreeQueue;
+use bounded_mpmc_queue::LockFreeQueue;
 use std::{
     sync::{
         Arc,
@@ -15,7 +15,7 @@ fn many_producers_single_consumer() {
         let q = Arc::clone(&queue);
         producer_handles.push(thread::spawn(move || {
             for i in 0..100 {
-                q.push(i);
+                q.push(i).unwrap();
             }
         }));
     }
@@ -23,7 +23,7 @@ fn many_producers_single_consumer() {
         handle.join().unwrap();
     }
     let mut count = 0;
-    while queue.try_pop().is_some() {
+    while queue.try_pop().is_ok() {
         count += 1;
     }
 
@@ -34,7 +34,7 @@ fn many_producers_single_consumer() {
 fn single_producer_many_consumers() {
     let queue = Arc::new(LockFreeQueue::new(1024));
     for i in 0..800 {
-        queue.push(i);
+        queue.push(i).unwrap();
     }
 
     let count = Arc::new(AtomicUsize::new(0));
@@ -44,7 +44,7 @@ fn single_producer_many_consumers() {
         let c = Arc::clone(&count);
         consumer_handles.push(thread::spawn(move || {
             for _ in 0..100 {
-                q.pop();
+                q.pop().unwrap();
                 c.fetch_add(1, Ordering::Relaxed);
             }
         }));
@@ -65,7 +65,7 @@ fn more_producers_than_consumers() {
         let q = Arc::clone(&queue);
         producer_handles.push(thread::spawn(move || {
             for i in 0..100 {
-                q.push(i);
+                q.push(i).unwrap();
             }
         }));
     }
@@ -80,7 +80,7 @@ fn more_producers_than_consumers() {
         let c = Arc::clone(&count);
         consumer_handles.push(thread::spawn(move || {
             for _ in 0..400 {
-                q.pop();
+                q.pop().unwrap();
                 c.fetch_add(1, Ordering::Relaxed);
             }
         }));

@@ -6,15 +6,15 @@ use std::{
     thread,
 };
 
-use bounded_mpmc_queue::queue::lockfree::LockFreeQueue;
+use bounded_mpmc_queue::LockFreeQueue;
 
 #[test]
 fn lockfree_try_push_returns_err_when_full() {
     let queue = LockFreeQueue::new(4);
-    queue.push(1);
-    queue.push(2);
-    queue.push(3);
-    queue.push(4);
+    queue.push(1).unwrap();
+    queue.push(2).unwrap();
+    queue.push(3).unwrap();
+    queue.push(4).unwrap();
     let result = queue.try_push(5);
     assert!(result.is_err());
 }
@@ -23,7 +23,7 @@ fn lockfree_try_push_returns_err_when_full() {
 fn lockfree_try_pop_returns_none_when_empty() {
     let queue: LockFreeQueue<i32> = LockFreeQueue::new(4);
     let result = queue.try_pop();
-    assert!(result.is_none());
+    assert!(result.is_err());
 }
 
 #[test]
@@ -34,7 +34,7 @@ fn lockfree_multiple_producer_single_consumer() {
         let q = Arc::clone(&queue);
         let handle = thread::spawn(move || {
             for i in 0..10 {
-                q.push(i);
+                q.push(i).unwrap();
             }
         });
         handles.push(handle);
@@ -43,7 +43,7 @@ fn lockfree_multiple_producer_single_consumer() {
         handle.join().unwrap();
     }
     let mut count = 0;
-    while queue.try_pop().is_some() {
+    while queue.try_pop().is_ok() {
         count += 1;
     }
     assert_eq!(count, 40);
@@ -54,7 +54,7 @@ fn lockfree_single_producer_multiple_consumers() {
     let queue = Arc::new(LockFreeQueue::new(64));
     let mut handles = vec![];
     for i in 0..40 {
-        queue.push(i);
+        queue.push(i).unwrap();
     }
     let count = Arc::new(AtomicUsize::new(0));
     for _ in 0..4 {
@@ -62,7 +62,7 @@ fn lockfree_single_producer_multiple_consumers() {
         let c = Arc::clone(&count);
         let handle = thread::spawn(move || {
             for _ in 0..10 {
-                q.pop();
+                q.pop().unwrap();
                 c.fetch_add(1, Ordering::Relaxed);
             }
         });
@@ -82,7 +82,7 @@ fn lockfree_multiple_producers_multiple_consumers() {
         let q = Arc::clone(&queue);
         let handle = thread::spawn(move || {
             for i in 0..10 {
-                q.push(i);
+                q.push(i).unwrap();
             }
         });
         producer_handles.push(handle);
@@ -98,7 +98,7 @@ fn lockfree_multiple_producers_multiple_consumers() {
         let c = Arc::clone(&count);
         let handle = thread::spawn(move || {
             for _ in 0..10 {
-                q.pop();
+                q.pop().unwrap();
                 c.fetch_add(1, Ordering::Relaxed);
             }
         });

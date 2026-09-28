@@ -47,3 +47,5 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_panics_doc = "allow"
 cast_possible_wrap = "allow"
+comparison_chain = "allow"  # keeps the three-way diff shaped like Vyukov's original
+doc_markdown = "allow"
