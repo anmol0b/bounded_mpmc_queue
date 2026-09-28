@@ -58,7 +58,7 @@ impl<T: Send> BoundedQueue<T> for BlockingQueue<T> {
         BlockingQueue::new(capacity)
     }
     fn push(&self, item: T) {
-        self.push(item)
+        self.push(item);
     }
     fn pop(&self) -> T {
         self.pop()

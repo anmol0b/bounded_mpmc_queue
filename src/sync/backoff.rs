@@ -5,6 +5,12 @@ pub struct Backoff {
     step: u32,
 }
 
+impl Default for Backoff {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Backoff {
     pub fn new() -> Self {
         Backoff { step: 0 }

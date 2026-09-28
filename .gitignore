@@ -1,9 +1,7 @@
 target/
 **/target/
 
-# Rust / Cargo
-Cargo.lock
-**/Cargo.lock
+# Cargo.lock is committed so benchmark numbers are reproducible.
 
 # Editor / IDE
 .DS_Store

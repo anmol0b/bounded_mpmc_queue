@@ -43,10 +43,10 @@ fn blocking_multiple_producer_single_consumer() {
         handle.join().unwrap();
     }
     let mut count = 0;
-    while let Some(_) = queue.try_pop() {
+    while queue.try_pop().is_some() {
         count += 1;
     }
-    assert_eq!(count, 40)
+    assert_eq!(count, 40);
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use std::{cell::UnsafeCell, sync::atomic::AtomicUsize, usize};
+use std::{cell::UnsafeCell, sync::atomic::AtomicUsize};
 
 pub struct Slot<T> {
     pub sequence: AtomicUsize,
@@ -12,5 +12,8 @@ impl<T> Slot<T> {
         }
     }
 }
+// SAFETY: access to `data` is gated by the sequence protocol; see Sync below.
 unsafe impl<T: Send> Send for Slot<T> {}
+// SAFETY: only the thread that wins the head/tail CAS for a position touches
+// `data`, and the Release/Acquire pair on `sequence` orders those accesses.
 unsafe impl<T: Send> Sync for Slot<T> {}

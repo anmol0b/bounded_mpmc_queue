@@ -7,7 +7,7 @@ use std::thread;
 fn bench_blocking(c: &mut Criterion, threads: usize, capacity: usize) {
     let mut group = c.benchmark_group("blocking");
     group.bench_with_input(
-        BenchmarkId::new(format!("threads_{}_cap_{}", threads, capacity), ""),
+        BenchmarkId::new(format!("threads_{threads}_cap_{capacity}"), ""),
         &(threads, capacity),
         |b, &(threads, capacity)| {
             b.iter(|| {
@@ -41,7 +41,7 @@ fn bench_blocking(c: &mut Criterion, threads: usize, capacity: usize) {
 fn bench_lockfree(c: &mut Criterion, threads: usize, capacity: usize) {
     let mut group = c.benchmark_group("lockfree");
     group.bench_with_input(
-        BenchmarkId::new(format!("threads_{}_cap_{}", threads, capacity), ""),
+        BenchmarkId::new(format!("threads_{threads}_cap_{capacity}"), ""),
         &(threads, capacity),
         |b, &(threads, capacity)| {
             b.iter(|| {

@@ -33,18 +33,19 @@ impl<T> LockFreeQueue<T> {
                 .compare_exchange(pos, pos + 1, Ordering::AcqRel, Ordering::Relaxed)
             {
                 Ok(_) => {
+                    // SAFETY: winning the tail CAS gives exclusive ownership of this slot.
                     unsafe {
                         *slot.data.get() = Some(item);
                     }
                     slot.sequence.store(pos + 1, Ordering::Release);
-                    return Ok(());
+                    Ok(())
                 }
                 Err(_) => {
-                    return Err(item);
+                    Err(item)
                 }
             }
         } else {
-            return Err(item);
+            Err(item)
         }
     }
     pub fn try_pop(&self) -> Option<T> {
@@ -57,15 +58,16 @@ impl<T> LockFreeQueue<T> {
                 .compare_exchange(pos, pos + 1, Ordering::AcqRel, Ordering::Relaxed)
             {
                 Ok(_) => {
+                    // SAFETY: winning the head CAS gives exclusive ownership of this slot.
                     let item = unsafe { (*slot.data.get()).take() };
                     slot.sequence
                         .store(pos.wrapping_add(self.capacity), Ordering::Release);
-                    return item;
+                    item
                 }
-                Err(_) => return None,
+                Err(_) => None,
             }
         } else {
-            return None;
+            None
         }
     }
     pub fn push(&self, mut item: T) {
@@ -95,7 +97,7 @@ impl<T: Send> BoundedQueue<T> for LockFreeQueue<T> {
         LockFreeQueue::new(capacity)
     }
     fn push(&self, item: T) {
-        self.push(item)
+        self.push(item);
     }
     fn pop(&self) -> T {
         self.pop()
