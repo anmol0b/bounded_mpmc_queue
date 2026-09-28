@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bounded_mpmc_queue::{BlockingQueue, BoundedQueue, LockFreeQueue};
+use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue};
 
 const WINDOW: Duration = Duration::from_millis(300);
 

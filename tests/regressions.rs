@@ -6,8 +6,8 @@ mod common;
 use std::sync::Barrier;
 use std::thread;
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue, TryPushError};
 use common::scale;
+use parkring::{BlockingQueue, LockFreeQueue, TryPushError};
 
 /// Capacity 3 used to map positions 0,1,2 onto slots 0,1,0: three pushes were
 /// accepted and none could be popped. Capacity 6 deadlocked on the 3rd push.

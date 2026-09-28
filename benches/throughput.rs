@@ -14,12 +14,12 @@ use std::sync::{Arc, Barrier};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
 use common::{BenchQueue, Crossbeam, StdChannel};
 use criterion::measurement::WallTime;
 use criterion::{
     BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
+use parkring::{BlockingQueue, LockFreeQueue};
 
 /// Items per timed iteration. Divisible by every producer/consumer count used.
 const ITEMS: u64 = 1 << 18;

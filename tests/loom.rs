@@ -17,9 +17,9 @@
 //! [loom]: https://docs.rs/loom
 #![cfg(loom)]
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue, PopError, TryPopError, TryPushError};
 use loom::sync::Arc;
 use loom::thread;
+use parkring::{BlockingQueue, LockFreeQueue, PopError, TryPopError, TryPushError};
 
 fn model(f: impl Fn() + Sync + Send + 'static) {
     model_with_bound(3, f);

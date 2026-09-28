@@ -26,8 +26,8 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
 use common::{BenchQueue, Crossbeam, StdChannel};
+use parkring::{BlockingQueue, LockFreeQueue};
 
 const SAMPLES: usize = 2000;
 const GAP: Duration = Duration::from_millis(2);

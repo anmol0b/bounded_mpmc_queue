@@ -3,8 +3,8 @@
 
 mod common;
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
 use common::{mpmc_exactly_once_and_ordered as check, scale};
+use parkring::{BlockingQueue, LockFreeQueue};
 
 const SHAPES: [(usize, usize); 6] = [(1, 1), (2, 1), (1, 2), (4, 4), (8, 2), (2, 8)];
 const CAPACITIES: [usize; 4] = [1, 2, 16, 1024];

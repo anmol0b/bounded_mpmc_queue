@@ -27,7 +27,7 @@ struct Inner<T> {
 /// # Example
 ///
 /// ```
-/// use bounded_mpmc_queue::{BlockingQueue, TryPushError};
+/// use parkring::{BlockingQueue, TryPushError};
 ///
 /// let q = BlockingQueue::new(2);
 /// q.push("a").unwrap();

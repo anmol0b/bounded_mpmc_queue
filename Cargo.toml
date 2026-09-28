@@ -1,11 +1,11 @@
 [package]
-name = "bounded_mpmc_queue"
+name = "parkring"
 version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Bounded multi-producer multi-consumer queues in std-only Rust: a Vyukov-style lock-free ring with spin-then-park waiting, and a Mutex+Condvar reference implementation."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/anmol0b/bounded_mpmc_queue"
+repository = "https://github.com/anmol0b/parkring"
 readme = "README.md"
 keywords = ["mpmc", "queue", "lock-free", "concurrency", "ring-buffer"]
 categories = ["concurrency", "data-structures"]

@@ -3,7 +3,7 @@
 
 use std::cell::Cell;
 
-use bounded_mpmc_queue::{BlockingQueue, BoundedQueue, LockFreeQueue};
+use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue};
 
 fn assert_send_sync<T: Send + Sync>() {}
 

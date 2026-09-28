@@ -4,7 +4,7 @@
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 
-use bounded_mpmc_queue::{Backoff, BlockingQueue, LockFreeQueue};
+use parkring::{Backoff, BlockingQueue, LockFreeQueue};
 
 pub trait BenchQueue: Send + Sync + 'static {
     const NAME: &'static str;

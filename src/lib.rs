@@ -19,7 +19,7 @@
 //! Every failed push hands the item back inside the error.
 //!
 //! ```
-//! use bounded_mpmc_queue::LockFreeQueue;
+//! use parkring::LockFreeQueue;
 //!
 //! let queue = LockFreeQueue::new(64);
 //! std::thread::scope(|s| {
@@ -54,12 +54,12 @@
 //!
 //! ```compile_fail
 //! fn assert_sync<T: Sync>() {}
-//! assert_sync::<bounded_mpmc_queue::LockFreeQueue<std::rc::Rc<()>>>();
+//! assert_sync::<parkring::LockFreeQueue<std::rc::Rc<()>>>();
 //! ```
 //!
 //! ```compile_fail
 //! fn assert_sync<T: Sync>() {}
-//! assert_sync::<bounded_mpmc_queue::BlockingQueue<std::rc::Rc<()>>>();
+//! assert_sync::<parkring::BlockingQueue<std::rc::Rc<()>>>();
 //! ```
 //!
 //! See `docs/DESIGN.md` in the repository for the memory-ordering argument

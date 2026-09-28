@@ -1,6 +1,6 @@
-# bounded_mpmc_queue
+# parkring
 
-[![CI](https://github.com/anmol0b/bounded_mpmc_queue/actions/workflows/ci.yml/badge.svg)](https://github.com/anmol0b/bounded_mpmc_queue/actions/workflows/ci.yml)
+[![CI](https://github.com/anmol0b/parkring/actions/workflows/ci.yml/badge.svg)](https://github.com/anmol0b/parkring/actions/workflows/ci.yml)
 ![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-blue)
 ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
@@ -17,7 +17,7 @@ drain semantics. Both are verified with **loom** model checking, **Miri**,
 property-based tests, and drop accounting.
 
 ```rust
-use bounded_mpmc_queue::LockFreeQueue;
+use parkring::LockFreeQueue;
 
 let queue = LockFreeQueue::new(1024);
 std::thread::scope(|s| {
@@ -122,7 +122,7 @@ cargo bench && cargo run --release --example plot        # regenerate charts
 
 ## Project history
 
-This crate began as a take-home assignment. The submitted version passed its
+This crate began as a take-home assignment, published as `bounded_mpmc_queue` and renamed to `parkring` in 0.3. The submitted version passed its
 own tests but had real defects: `try_push` failed spuriously under contention,
 non-power-of-two capacities lost items, blocked threads spun forever, and the
 benchmarks mostly timed `thread::spawn`. Version 0.2 is the result of auditing

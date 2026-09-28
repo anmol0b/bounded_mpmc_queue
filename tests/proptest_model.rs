@@ -6,8 +6,8 @@ mod common;
 
 use std::collections::VecDeque;
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue, TryPopError, TryPushError};
 use common::TestQueue;
+use parkring::{BlockingQueue, LockFreeQueue, TryPopError, TryPushError};
 use proptest::prelude::*;
 
 #[derive(Clone, Debug)]

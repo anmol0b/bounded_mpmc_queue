@@ -40,7 +40,7 @@ use crate::utils::CachePadded;
 /// # Example
 ///
 /// ```
-/// use bounded_mpmc_queue::LockFreeQueue;
+/// use parkring::LockFreeQueue;
 ///
 /// let q = LockFreeQueue::new(3);
 /// assert_eq!(q.capacity(), 4); // rounded up
