@@ -25,7 +25,12 @@ fn model(f: impl Fn() + Sync + Send + 'static) {
     model_with_bound(3, f);
 }
 
-fn model_with_bound(preemptions: usize, f: impl Fn() + Sync + Send + 'static) {
+/// Runs `f` under loom with at most `max_preemptions`.
+///
+/// `LOOM_MAX_PREEMPTIONS` can lower the bound but never raise it past the
+/// test's own cap: some models are only finite under a small bound (see
+/// `notify_one_does_not_strand_a_second_waiter`).
+fn model_with_bound(max_preemptions: usize, f: impl Fn() + Sync + Send + 'static) {
     let mut builder = loom::model::Builder::new();
     // Three-thread scenarios with retry loops need longer execution paths
     // than loom's default budget of 1000 branches.
@@ -33,9 +38,11 @@ fn model_with_bound(preemptions: usize, f: impl Fn() + Sync + Send + 'static) {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(20_000);
-    if std::env::var_os("LOOM_MAX_PREEMPTIONS").is_none() {
-        builder.preemption_bound = Some(preemptions);
-    }
+    let from_env = std::env::var("LOOM_MAX_PREEMPTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok());
+    builder.preemption_bound =
+        Some(from_env.map_or(max_preemptions, |n: usize| n.min(max_preemptions)));
     builder.check(f);
 }
 
