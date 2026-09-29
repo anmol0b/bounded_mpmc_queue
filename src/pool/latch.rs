@@ -6,9 +6,19 @@ use crate::sync::{Arc, AtomicUsize, Condvar, Mutex, Ordering};
 
 /// Signals completion of a job.
 pub(super) trait Latch {
-    /// Marks the latch as set. After this the setter must not touch the
-    /// latch (or the job containing it) again: the waiter may free it.
-    fn set(this: &Self);
+    /// Marks the latch as set.
+    ///
+    /// Takes a raw pointer, not `&Self`: the waiter may free the latch (it
+    /// lives in the waiter's stack frame) the moment it sees the flag, while
+    /// `set` is still running. A `&Self` argument stays protected until the
+    /// function returns, so freeing it earlier is undefined behaviour under
+    /// Rust's aliasing model; Miri caught exactly that. Rayon's latches take
+    /// `*const Self` for the same reason.
+    ///
+    /// # Safety
+    /// `this` must point to a live latch. After the flag is published, `set`
+    /// must not touch `*this` again.
+    unsafe fn set(this: *const Self);
 }
 
 /// A flag the waiting worker polls while it helps with other work. Used by
@@ -31,8 +41,10 @@ impl SpinLatch {
 }
 
 impl Latch for SpinLatch {
-    fn set(this: &Self) {
-        this.state.store(1, Ordering::Release);
+    unsafe fn set(this: *const Self) {
+        // SAFETY: `this` is live until this store publishes the flag, and the
+        // store is the last access.
+        unsafe { (*this).state.store(1, Ordering::Release) };
     }
 }
 
@@ -63,9 +75,10 @@ impl LockLatch {
 }
 
 impl Latch for LockLatch {
-    fn set(this: &Self) {
-        let shared = Arc::clone(&this.shared);
-        // From here on only `shared` is used, never `this`.
+    unsafe fn set(this: *const Self) {
+        // SAFETY: the flag is not set yet, so the waiter cannot have freed
+        // `*this`. From here on only `shared` is used, never `this`.
+        let shared = unsafe { Arc::clone(&(*this).shared) };
         let (lock, cv) = &*shared;
         *lock.lock().unwrap_or_else(PoisonError::into_inner) = true;
         cv.notify_all();

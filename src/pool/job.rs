@@ -119,23 +119,22 @@ where
     }
 
     unsafe fn execute(this: NonNull<JobHeader>) {
-        // SAFETY: `this` points to a live `StackJob` (the waiter is blocked
-        // on its latch), and only one thread executes a job.
-        let job = unsafe { this.cast::<Self>().as_ref() };
-        // SAFETY: we are the only thread running this job.
-        let func = job
-            .func
-            .with_mut(|f| unsafe { (*f).take() })
-            .expect("job ran twice");
+        // A raw pointer throughout, never `&Self`: the waiter frees the job
+        // (its stack frame) as soon as the latch is set, possibly before this
+        // function returns. See `Latch::set`.
+        let job: *const Self = this.cast::<Self>().as_ptr();
+        // SAFETY: the job is live (the waiter is blocked on its latch), and
+        // only one thread executes a job.
+        let func = unsafe { (*job).func.with_mut(|f| (*f).take()) }.expect("job ran twice");
         let result = match panic::catch_unwind(AssertUnwindSafe(func)) {
             Ok(r) => JobResult::Ok(r),
             Err(payload) => JobResult::Panic(payload),
         };
-        // SAFETY: the waiter reads `result` only after observing the latch,
-        // which the Release in `set` orders after this write.
-        job.result.with_mut(|r| unsafe { *r = result });
-        // Last access to `job`: the waiter may free the frame after this.
-        L::set(&job.latch);
+        // SAFETY: still live; the waiter reads `result` only after observing
+        // the latch, which the Release in `set` orders after this write.
+        unsafe { (*job).result.with_mut(|r| *r = result) };
+        // SAFETY: still live. This is the last access to the job.
+        unsafe { L::set(&raw const (*job).latch) };
     }
 
     /// Runs the job on the current thread, if nobody else took it.

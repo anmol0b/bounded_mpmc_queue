@@ -31,6 +31,15 @@ so any job type travels through the deques and the injector as one pointer.
   setter clones *before* setting, because the waiter may return and free its
   frame the moment it sees the flag.
 
+**Latches take raw pointers.** The first version's `Latch::set` took
+`&self`. CI's Miri run reported "deallocating while item is strongly
+protected": a `&Self` argument stays protected until the function returns, but
+the waiting thread may see the flag and pop the frame holding the latch while
+`set` is still running. Freeing protected memory is undefined behaviour under
+Rust's aliasing model, even if `set` never touches it again. `set` now takes
+`*const Self` and `StackJob::execute` never holds a `&Self` across it, the
+same approach Rayon takes. A local Miri run across 12 scheduling seeds passes.
+
 Panics: a panic in `a` is held until `b` has finished (`b` may be borrowing the
 frame on another thread), then resumed; a panic in `b` is carried back through
 the job's result slot. A panic in a spawned job aborts the process, as in

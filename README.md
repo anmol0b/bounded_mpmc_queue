@@ -72,9 +72,10 @@ the write-up.
 * **The classic Chase-Lev double take**: remove either `SeqCst` fence and loom
   produces `an element was taken twice: [0, 1, 1]`. CI builds each mutant and
   requires that failure ([DEQUE.md §3](docs/DEQUE.md)).
-* **An aliasing violation Miri caught and loom could not**: retiring a deque
-  buffer through `Box::from_raw` retags memory a thief may still be reading
-  ([DEQUE.md §6](docs/DEQUE.md)).
+* **Two aliasing violations Miri caught and loom could not**: retiring a
+  deque buffer through `Box::from_raw` retags memory a thief may still be
+  reading ([DEQUE.md §6](docs/DEQUE.md)), and a latch's `&self` argument stayed
+  protected while the waiting thread freed it ([POOL.md](docs/POOL.md)).
 
 ## Results
 

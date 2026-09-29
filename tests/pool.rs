@@ -95,15 +95,16 @@ fn deep_recursion_of_joins() {
         }
     }
     let pool = ThreadPool::new(4);
-    let n = if cfg!(miri) { 50 } else { 5_000 };
-    // Enough stack for a deep chain of join frames.
-    let result = thread::Builder::new()
-        .stack_size(64 << 20)
-        .spawn(move || pool.install(|| depth(n)))
-        .unwrap()
-        .join()
-        .unwrap();
-    assert_eq!(result, n);
+    // The recursion runs on the pool's workers, which have default-size
+    // stacks; debug-build join frames are several times larger.
+    let n = if cfg!(miri) {
+        50
+    } else if cfg!(debug_assertions) {
+        200
+    } else {
+        2_000
+    };
+    assert_eq!(pool.install(|| depth(n)), n);
 }
 
 fn boom(side: &str) -> u32 {
