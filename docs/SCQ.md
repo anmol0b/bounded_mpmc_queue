@@ -19,7 +19,7 @@ the one ring entry a position maps to, where it is rarely contended. And no
 operation ever waits on a particular other thread: a consumer that reaches a
 position whose producer has not published yet waits briefly, then invalidates
 the position, and the producer simply takes another one. That makes SCQ
-lock-free.
+lock-free. It does not make it faster on this machine: see §7.
 
 ## 2. Structure
 
@@ -68,7 +68,7 @@ loop:
 ### Ring dequeue
 
 ```text
-if threshold < 0 and tail ≤ head: return empty            (see §4)
+if entry at head holds no item and tail ≤ head: return empty   (§8)
 loop:
   h = head.fetch_add(1)
   e = entry[slot(h)]
@@ -122,10 +122,11 @@ producers plus three consumers, they can: the stress test hung in about one run
 in four with an item sitting at exactly `head` and the threshold at −1, so
 every dequeuer exited immediately and every parked thread slept forever.
 
-The fix: a negative threshold is trusted only if `tail ≤ head` as well, and the
-wake condition for parked threads is `tail > head`, ignoring the threshold's
-value. A negative threshold still limits every dequeue call to one iteration,
-so the livelock protection remains. The capacity-1 test now passes 60 of 60
+The fix: the early exit on a negative threshold is gone. A dequeuer returns
+empty without claiming only when it has seen `tail <= head` (the pre-check in
+§8), and the wake condition for parked threads is `tail > head`, ignoring the
+threshold's value. A negative threshold still ends every dequeue call after
+one failed iteration, so the livelock protection remains. The capacity-1 test now passes 60 of 60
 runs (it failed 11 of 40), and a regression test runs the scenario 200 times
 with a watchdog.
 
@@ -188,7 +189,59 @@ exact, so the proptest model applies unchanged.
 SCQ does about twice the atomic operations of the Vyukov queue per item and
 uses four words of ring per data cell.
 
-## 7. Verification
+## 7. Performance on a 10-core Apple M4
+
+SCQ is correct and lock-free here, but it is **not faster** than the Vyukov
+queue on this machine, and the gap is large. Median time per item, one run
+set, spin-only (no parking) so only the queues differ:
+
+| | 1 producer + 1 consumer | 4 + 4 |
+|---|---|---|
+| `LockFreeQueue` (Vyukov) | 13 ns | 16–22 ns |
+| `ScqQueue` | 67–72 ns | 153–163 ns |
+
+Uncontended, on one thread, a push/pop pair costs 22.5 ns against 7.7 ns: the
+expected ~3× from doing about four times the atomic operations. The rest is
+cache-line traffic. Per item SCQ touches entries in two rings and a data cell,
+each written by one side and read by the other, plus four position counters and
+two threshold words shared across all producers or all consumers. The Vyukov
+queue touches one slot line per item.
+
+Profiling (`sample` plus disassembly) found and removed two self-inflicted
+costs, together worth about 1.7×:
+
+* **Reading the other side's counter on every call.** The empty pre-check
+  (§8) first read `tail` on every dequeue, and `try_pop` read the closed flag
+  (also on `tail`) on every pop. The producer increments `tail` on every push,
+  so that line bounced between cores on every operation: the `tail`
+  fetch-add alone was about half of all samples. The pre-check now peeks at the
+  entry at `head` first, and the closed flag is read only once the ring looks
+  empty.
+* **Destructive empty polls.** Before the pre-check existed, a consumer polling
+  an empty queue claimed a position and invalidated the entry a producer was
+  about to fill, up to 3n − 1 times per item.
+
+The threshold swap (§4) costs about 10–15% at 4 + 4 compared with the paper's
+conditional reset, and nothing measurable at 1 + 1; it is not the main cost.
+
+Where would SCQ win? Its design targets many-core x86 servers, where dozens of
+threads retrying a CAS on one line collapse, and where a producer preempted
+mid-operation stalls a Vyukov queue's consumer. On 10 ARM cores with LSE
+atomics a CAS retry is cheap, and at 16 + 16 threads (oversubscribed) SCQ was
+still slower. This repository therefore keeps `LockFreeQueue` as the default
+recommendation and presents SCQ for its progress guarantee and as a verified
+implementation of the paper, not as a performance win.
+
+## 8. The empty pre-check
+
+Not in the paper: before claiming a position, a dequeuer peeks at the entry at
+`head`. If it already holds this lap's item, it claims straight away.
+Otherwise it reads `tail`, and if `tail <= head` returns empty without writing
+anything. This replaces the paper's early exit on a negative threshold, which
+could strand an item (§4). A negative threshold still ends a dequeue after one
+failed iteration.
+
+## 9. Verification
 
 | | |
 |---|---|
@@ -200,8 +253,12 @@ uses four words of ring per data cell.
 
 **Mutation check.** Restoring the paper's conditional threshold reset
 (`--cfg parkring_mutant="scq_conditional_threshold"`) makes loom report a
-deadlock in the producer-side lost-wakeup model: without the swap, a parked
-producer has no RMW to pair with. CI runs that build and requires it to fail.
+deadlock in the multi-lap FIFO model and the two-waiter model: without the
+swap, a parked thread has no RMW to pair with and misses its wakeup. CI runs
+that build and requires the FIFO model to fail. (Before the empty pre-check
+described in §8 existed, the dedicated producer lost-wakeup model caught it;
+the pre-check changed which schedules reach the parking path, which is why the
+CI job names the model it relies on.)
 
 The two-parked-consumers model is finite at preemption bound 2. The Vyukov
 queue's equivalent model is only finite at bound 1, because loom can starve a

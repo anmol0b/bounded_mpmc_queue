@@ -137,20 +137,39 @@ impl IndexRing {
     /// `close` consumers only stop once `head` has caught up with `tail`.
     pub(super) fn dequeue(&self, drain: bool) -> Deq {
         let g = self.geo;
-        // D0: a negative threshold means the ring is probably empty. The
-        // paper treats it as proof, but its 3n - 1 bound counts positions,
-        // not dequeuers that claimed a position before the last reset and
-        // decrement after it; their number is bounded by the thread count.
-        // With more threads than capacity the threshold can go negative while
-        // an item sits at `head` (found by the capacity-1, 3+3 thread test).
-        // So we also require `tail <= head` before trusting it. A negative
-        // threshold still limits every call to one iteration (D8), which is
-        // what prevents the livelock the paper introduced it for.
-        if !drain
-            && self.threshold.load(Relaxed) < 0
-            && self.tail.load(Relaxed) & POS_MASK <= self.head.load(Relaxed)
-        {
-            return Deq::EmptyByThreshold;
+        // D0 (pre-check, replacing the paper's threshold check): if
+        // `tail <= head` there is nothing to claim, so return without writing
+        // anything.
+        //
+        // * Every claim on an empty ring is a fetch-add on `head` plus a CAS
+        //   that invalidates the entry a producer is about to fill, forcing it
+        //   to retry. Polling consumers did that hundreds of times per item
+        //   (the threshold allows 3n - 1 failures) and made the queue 10-15x
+        //   slower than the Vyukov queue.
+        // * The paper instead returns early whenever the threshold is
+        //   negative. Its 3n - 1 bound counts positions, not dequeuers that
+        //   claimed a position before the last reset and decrement after it,
+        //   whose number is bounded by the thread count. With more threads
+        //   than capacity the threshold went negative while an item sat at
+        //   `head`, stranding it. When `tail > head` we therefore always
+        //   claim; a negative threshold still ends the call after one failed
+        //   iteration (D8), which is the livelock protection the paper wants.
+        //
+        // The check first peeks at the entry at `head`: if it already holds
+        // this lap's item, claim straight away. Only otherwise read `tail`.
+        // Reading `tail` on every call made each side's counter line bounce
+        // between cores on every operation (the producer increments `tail`,
+        // the consumer read it), which profiling showed was half the cost.
+        let head = self.head.load(Relaxed);
+        let peek = self.entry(head).load(Relaxed);
+        let item_at_head = g.cycle(peek) == g.cycle_of(head) && g.index(peek) != g.bot();
+        if !item_at_head {
+            let tail = self.tail.load(Acquire);
+            if tail & POS_MASK <= self.head.load(Relaxed) {
+                return Deq::EmptyAtTail {
+                    closed: tail & CLOSED_BIT != 0,
+                };
+            }
         }
         let mut backoff = Backoff::new();
         loop {

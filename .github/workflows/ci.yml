@@ -113,7 +113,7 @@ jobs:
           key: loom-mutant
       - name: the mutant must fail
         run: |
-          if cargo test -p parkring --release --test loom_scq producer_is_not_lost; then
+          if cargo test -p parkring --release --test loom_scq fifo_across_laps; then
             echo "::error::loom no longer detects the conditional threshold reset"
             exit 1
           fi

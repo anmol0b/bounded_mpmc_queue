@@ -30,10 +30,12 @@ use crate::traits::forward_bounded_queue;
 ///   In the Vyukov design a producer preempted between claiming a slot and
 ///   publishing it stalls that slot's consumer; here the consumer invalidates
 ///   the slot after a bounded wait and the producer takes another position.
-/// * **Contention.** A contended claim is one `fetch_add`, not a CAS retry
-///   loop, so throughput holds up when threads outnumber cores.
-/// * **Cost.** About twice the atomic operations per item, and 4 words of
-///   ring per data cell. Expect it to lose at low contention.
+/// * **Slower here.** A claim is one `fetch_add`, never a CAS retry loop,
+///   but each item touches two rings and a data cell. On a 10-core Apple M4
+///   it is about 5× slower than `LockFreeQueue` with one producer and one
+///   consumer and about 7× slower at 4 + 4 (`docs/SCQ.md` §7). Choose it for
+///   the progress guarantee, not for throughput.
+/// * **Memory.** 4 words of ring per data cell.
 /// * **`Full` is weaker.** `try_push` can report `Full` while a pop has
 ///   removed an item but not yet returned its cell to the free ring. That is
 ///   the price of never waiting on the popper. With one thread, `Full` and
@@ -140,9 +142,12 @@ impl<T> ScqQueue<T> {
     /// [`TryPopError::Empty`], or [`TryPopError::Closed`] once the queue is
     /// closed and drained.
     pub fn try_pop(&self) -> Result<T, TryPopError> {
-        let closed = self.aq.is_closed();
-        let result = match self.aq.dequeue(closed) {
-            // Closed while we looked: drain, ignoring the threshold.
+        // The closed flag lives on the allocated ring's `tail`, the line every
+        // push increments, so it is only read once the ring looks empty.
+        // Reading it up front on every pop made that line bounce between
+        // producer and consumer cores on every operation.
+        let result = match self.aq.dequeue(false) {
+            // Out of threshold but closed: drain, ignoring the threshold.
             Deq::EmptyByThreshold if self.aq.is_closed() => self.aq.dequeue(true),
             other => other,
         };
