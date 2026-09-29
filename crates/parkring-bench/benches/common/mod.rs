@@ -4,7 +4,7 @@
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 
-use bounded_mpmc_queue::{Backoff, BlockingQueue, LockFreeQueue};
+use parkring::{Backoff, BlockingQueue, LockFreeQueue, ScqQueue};
 
 pub trait BenchQueue: Send + Sync + 'static {
     const NAME: &'static str;
@@ -27,6 +27,19 @@ impl BenchQueue for LockFreeQueue<u64> {
     }
     fn pop(&self) -> u64 {
         LockFreeQueue::pop(self).unwrap()
+    }
+}
+
+impl BenchQueue for ScqQueue<u64> {
+    const NAME: &'static str = "scq";
+    fn with_capacity(capacity: usize) -> Self {
+        Self::new(capacity)
+    }
+    fn push(&self, value: u64) {
+        ScqQueue::push(self, value).unwrap();
+    }
+    fn pop(&self) -> u64 {
+        ScqQueue::pop(self).unwrap()
     }
 }
 

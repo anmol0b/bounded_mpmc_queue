@@ -4,6 +4,49 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-09-29
+
+Renamed to `parkring` and extended from two queues to a small set of
+verified concurrency primitives. See the README for what the verification
+found along the way.
+
+### Changed
+- **Breaking:** the crate is renamed from `bounded_mpmc_queue` to `parkring`.
+  Replace `use bounded_mpmc_queue::…` with `use parkring::…`.
+- The repository is a Cargo workspace; benchmarks and chart generation live in
+  the unpublished `crates/parkring-bench`.
+- Parked threads sleep on a futex: `futex(2)` on Linux and Android,
+  `__ulock_wait`/`__ulock_wake` on macOS. Other platforms, and builds with
+  `--cfg parkring_force_condvar`, keep the `Mutex` + `Condvar` parker. The
+  crate now depends on `libc` on those three targets.
+
+### Performance
+- Median wake latency of a parked consumer on an Apple M4 drops about 10%
+  (8.5–8.8 µs against 9.4–10.0 µs), with a lower p99.
+- Benchmarks for the deque against crossbeam-deque and the pool against Rayon;
+  `docs/BENCHMARKS.md` reports every result, including the losses.
+
+### Added
+- `ScqQueue`: a lock-free bounded MPMC queue after Nikolaev's SCQ (DISC 2019).
+  Claims are `fetch_add`s, so contended threads never retry them, and no
+  operation waits on a particular other thread. 64-bit targets only. On a
+  10-core Apple M4 it is 5–8× slower than `LockFreeQueue`; `docs/SCQ.md`
+  explains why, with profiling, and documents a case where the paper's
+  threshold bound does not hold (more threads than capacity).
+- `Worker` / `Stealer`: a Chase-Lev work-stealing deque with the Lê et al.
+  (PPoPP 2013) orderings adapted to C++20. Slots are atomic pointers, so a
+  thief's racing read is sound (values are boxed). Loom reproduces the classic
+  double take when either `SeqCst` fence is removed; CI requires it. Miri found
+  and the retire list now avoids an aliasing violation on grown buffers. See
+  `docs/DEQUE.md`.
+- `ThreadPool` with `join`, `spawn` and `install`: a work-stealing pool built
+  from the crate's own pieces (a Chase-Lev deque per worker, `LockFreeQueue`
+  as the injector, futex parking for idle workers). A `join` never allocates;
+  dropping the pool runs every spawned job first. See `docs/POOL.md`.
+- Loom models for `close` after one of two parked consumers is woken, and for
+  a timed pop racing a push. CI runs the loom suite against both parkers.
+- CI tests on Windows and type-checks FreeBSD, both on the portable parker.
+
 ## [0.2.0] - 2026-09-28
 
 A production-hardening pass over the original take-home submission. See

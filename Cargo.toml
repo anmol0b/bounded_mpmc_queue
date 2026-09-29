@@ -1,54 +1,38 @@
-[package]
-name = "bounded_mpmc_queue"
-version = "0.2.0"
+[workspace]
+members = [".", "crates/parkring-bench"]
+resolver = "3"
+
+[workspace.package]
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Bounded multi-producer multi-consumer queues in std-only Rust: a Vyukov-style lock-free ring with spin-then-park waiting, and a Mutex+Condvar reference implementation."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/anmol0b/bounded_mpmc_queue"
-readme = "README.md"
-keywords = ["mpmc", "queue", "lock-free", "concurrency", "ring-buffer"]
-categories = ["concurrency", "data-structures"]
-exclude = ["assets/", "docs/", ".github/"]
+repository = "https://github.com/anmol0b/parkring"
 
-[dependencies]
-# Intentionally empty: the library is std-only.
-
-# Only compiled under `RUSTFLAGS="--cfg loom"`; never part of a downstream build.
-[target.'cfg(loom)'.dependencies]
+[workspace.dependencies]
+parkring = { path = ".", version = "0.3.0" }
+libc = "0.2"
 loom = "0.7"
-
-[dev-dependencies]
+proptest = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
 crossbeam-queue = "0.3"
-libc = "0.2"
+crossbeam-deque = "0.8"
+rayon = "1"
 plotters = { version = "0.3", default-features = false, features = ["svg_backend", "line_series", "point_series", "errorbar"] }
-proptest = "1"
 serde_json = "1"
 
-[[bench]]
-name = "throughput"
-harness = false
-
-[[bench]]
-name = "latency"
-harness = false
-
-[profile.bench]
-lto = "fat"
-codegen-units = 1
-debug = 1
-
-[profile.release]
-debug = 1
-
-[lints.rust]
+[workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)"] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+    "cfg(loom)",
+    "cfg(parkring_force_condvar)",
+    # Deliberately broken builds for mutation testing; see tests/loom_scq.rs.
+    'cfg(parkring_mutant, values("scq_conditional_threshold", "deque_no_pop_fence", "deque_no_steal_fence"))',
+] }
 
-[lints.clippy]
+[workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 undocumented_unsafe_blocks = "deny"
 missing_safety_doc = "deny"
@@ -58,3 +42,41 @@ missing_panics_doc = "allow"
 cast_possible_wrap = "allow"
 comparison_chain = "allow"  # keeps the three-way diff shaped like Vyukov's original
 doc_markdown = "allow"
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1
+debug = 1
+
+[profile.release]
+debug = 1
+
+[package]
+name = "parkring"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded MPMC queues (Vyukov and SCQ), a Chase-Lev work-stealing deque and a work-stealing thread pool, with futex-based parking, verified with loom and Miri."
+readme = "README.md"
+keywords = ["mpmc", "queue", "lock-free", "work-stealing", "futex"]
+categories = ["concurrency", "data-structures"]
+exclude = ["assets/", "docs/", ".github/", "crates/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+
+# Futex-based parking. Other targets use std's Mutex + Condvar.
+[target.'cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))'.dependencies]
+libc.workspace = true
+
+# Only compiled under `RUSTFLAGS="--cfg loom"`; never part of a downstream build.
+[target.'cfg(loom)'.dependencies]
+loom.workspace = true
+
+[dev-dependencies]
+libc.workspace = true
+proptest.workspace = true

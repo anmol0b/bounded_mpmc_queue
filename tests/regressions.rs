@@ -6,8 +6,8 @@ mod common;
 use std::sync::Barrier;
 use std::thread;
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue, TryPushError};
 use common::scale;
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue, TryPushError};
 
 /// Capacity 3 used to map positions 0,1,2 onto slots 0,1,0: three pushes were
 /// accepted and none could be popped. Capacity 6 deadlocked on the 3rd push.
@@ -88,5 +88,56 @@ fn concurrent_try_pop_never_fails_on_a_non_empty_queue() {
             }
         });
         assert_eq!(q.len(), THREADS * PER_THREAD);
+    }
+}
+
+/// SCQ's threshold could go negative while an item sat at `head` when more
+/// threads than slots were active, stranding it: every dequeuer returned
+/// Empty without claiming a position, and parked threads never woke. Hung in
+/// about 1 run in 4 with capacity 1 and 3 producers + 3 consumers. A watchdog
+/// turns a hang into a failure with the queue's state.
+#[test]
+#[cfg_attr(miri, ignore = "needs many rounds to hit the race")]
+fn scq_more_threads_than_capacity_never_strands_an_item() {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
+    use std::time::{Duration, Instant};
+
+    for round in 0..200 {
+        let q = ScqQueue::<u64>::new(1);
+        let popped = AtomicUsize::new(0);
+        let done = AtomicBool::new(false);
+        thread::scope(|s| {
+            let consumers: Vec<_> = (0..3)
+                .map(|_| {
+                    s.spawn(|| {
+                        while q.pop().is_ok() {
+                            popped.fetch_add(1, SeqCst);
+                        }
+                    })
+                })
+                .collect();
+            s.spawn(|| {
+                let start = Instant::now();
+                while !done.load(SeqCst) {
+                    assert!(
+                        start.elapsed() < Duration::from_secs(20),
+                        "round {round} hung: popped {} of 3000, {q:?}",
+                        popped.load(SeqCst)
+                    );
+                    thread::sleep(Duration::from_millis(10));
+                }
+            });
+            thread::scope(|ps| {
+                for _ in 0..3 {
+                    ps.spawn(|| (0..1000).for_each(|i| q.push(i).unwrap()));
+                }
+            });
+            q.close();
+            for c in consumers {
+                c.join().unwrap();
+            }
+            done.store(true, SeqCst);
+        });
+        assert_eq!(popped.load(SeqCst), 3000);
     }
 }

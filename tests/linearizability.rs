@@ -3,8 +3,8 @@
 
 mod common;
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
 use common::{mpmc_exactly_once_and_ordered as check, scale};
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue};
 
 const SHAPES: [(usize, usize); 6] = [(1, 1), (2, 1), (1, 2), (4, 4), (8, 2), (2, 8)];
 const CAPACITIES: [usize; 4] = [1, 2, 16, 1024];
@@ -41,4 +41,24 @@ fn blocking_grid() {
 fn lockfree_small_under_miri() {
     check::<LockFreeQueue<u64>>(2, 2, 2, scale(500), false);
     check::<LockFreeQueue<u64>>(2, 2, 2, scale(500), true);
+}
+
+#[test]
+#[cfg_attr(
+    miri,
+    ignore = "grid is too large for Miri; see sequential_and_concurrent"
+)]
+fn scq_grid() {
+    for (p, c) in SHAPES {
+        for cap in CAPACITIES {
+            check::<ScqQueue<u64>>(p, c, cap, scale(4000) / p, false);
+            check::<ScqQueue<u64>>(p, c, cap, scale(1000) / p, true);
+        }
+    }
+}
+
+#[test]
+fn scq_small_under_miri() {
+    check::<ScqQueue<u64>>(2, 2, 2, scale(500), false);
+    check::<ScqQueue<u64>>(2, 2, 2, scale(500), true);
 }

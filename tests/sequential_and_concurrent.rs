@@ -6,3 +6,4 @@ mod common;
 
 common::queue_tests!(lockfree, LockFreeQueue);
 common::queue_tests!(blocking, BlockingQueue);
+common::queue_tests!(scq, ScqQueue);

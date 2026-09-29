@@ -86,7 +86,7 @@ Throughput vs capacity (4 producers + 4 consumers)
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="95" x2="743" y2="95"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="92" x2="743" y2="92"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="88" x2="743" y2="88"/>
-<line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="85" x2="743" y2="85"/>
+<line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="84" x2="743" y2="84"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="81" x2="743" y2="81"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="77" x2="743" y2="77"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="74" x2="743" y2="74"/>
@@ -95,7 +95,7 @@ Throughput vs capacity (4 producers + 4 consumers)
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="63" x2="743" y2="63"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="60" x2="743" y2="60"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="56" x2="743" y2="56"/>
-<line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="53" x2="743" y2="53"/>
+<line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="52" x2="743" y2="52"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="49" x2="743" y2="49"/>
 <line opacity="1" stroke="#FFFFFF" stroke-width="1" x1="80" y1="45" x2="743" y2="45"/>
 <text x="16" y="211" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="11.290322580645162" opacity="1" fill="#000000" transform="rotate(270, 16, 211)">
@@ -192,42 +192,58 @@ capacity
 4096
 </text>
 <polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="719,380 719,385 "/>
-<polyline fill="none" opacity="1" stroke="#0072B2" stroke-width="2" points="103,313 411,224 719,81 "/>
-<circle cx="103" cy="313" r="4" opacity="1" fill="#0072B2" stroke="none" stroke-width="1"/>
-<circle cx="411" cy="224" r="4" opacity="1" fill="#0072B2" stroke="none" stroke-width="1"/>
-<circle cx="719" cy="81" r="4" opacity="1" fill="#0072B2" stroke="none" stroke-width="1"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="99" y1="314" x2="107" y2="314"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="99" y1="312" x2="107" y2="312"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="103" y1="314" x2="103" y2="312"/>
-<circle cx="103" cy="313" r="4" opacity="1" fill="none" stroke="#0072B2" stroke-width="1"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="407" y1="227" x2="415" y2="227"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="407" y1="217" x2="415" y2="217"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="411" y1="227" x2="411" y2="217"/>
-<circle cx="411" cy="224" r="4" opacity="1" fill="none" stroke="#0072B2" stroke-width="1"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="715" y1="94" x2="723" y2="94"/>
+<polyline fill="none" opacity="1" stroke="#0072B2" stroke-width="2" points="103,310 411,209 719,84 "/>
+<circle cx="103" cy="310" r="4" opacity="1" fill="#0072B2" stroke="none" stroke-width="1"/>
+<circle cx="411" cy="209" r="4" opacity="1" fill="#0072B2" stroke="none" stroke-width="1"/>
+<circle cx="719" cy="84" r="4" opacity="1" fill="#0072B2" stroke="none" stroke-width="1"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="99" y1="311" x2="107" y2="311"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="99" y1="309" x2="107" y2="309"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="103" y1="311" x2="103" y2="309"/>
+<circle cx="103" cy="310" r="4" opacity="1" fill="none" stroke="#0072B2" stroke-width="1"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="407" y1="215" x2="415" y2="215"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="407" y1="205" x2="415" y2="205"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="411" y1="215" x2="411" y2="205"/>
+<circle cx="411" cy="209" r="4" opacity="1" fill="none" stroke="#0072B2" stroke-width="1"/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="715" y1="89" x2="723" y2="89"/>
 <line opacity="1" stroke="#0072B2" stroke-width="1" x1="715" y1="73" x2="723" y2="73"/>
-<line opacity="1" stroke="#0072B2" stroke-width="1" x1="719" y1="94" x2="719" y2="73"/>
-<circle cx="719" cy="81" r="4" opacity="1" fill="none" stroke="#0072B2" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#E69F00" stroke-width="2" points="103,311 411,204 719,102 "/>
+<line opacity="1" stroke="#0072B2" stroke-width="1" x1="719" y1="89" x2="719" y2="73"/>
+<circle cx="719" cy="84" r="4" opacity="1" fill="none" stroke="#0072B2" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#D55E00" stroke-width="2" points="103,360 411,357 719,357 "/>
+<circle cx="103" cy="360" r="4" opacity="1" fill="#D55E00" stroke="none" stroke-width="1"/>
+<circle cx="411" cy="357" r="4" opacity="1" fill="#D55E00" stroke="none" stroke-width="1"/>
+<circle cx="719" cy="357" r="4" opacity="1" fill="#D55E00" stroke="none" stroke-width="1"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="99" y1="360" x2="107" y2="360"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="99" y1="359" x2="107" y2="359"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="103" y1="360" x2="103" y2="359"/>
+<circle cx="103" cy="360" r="4" opacity="1" fill="none" stroke="#D55E00" stroke-width="1"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="407" y1="357" x2="415" y2="357"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="407" y1="357" x2="415" y2="357"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="411" y1="357" x2="411" y2="357"/>
+<circle cx="411" cy="357" r="4" opacity="1" fill="none" stroke="#D55E00" stroke-width="1"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="715" y1="358" x2="723" y2="358"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="715" y1="357" x2="723" y2="357"/>
+<line opacity="1" stroke="#D55E00" stroke-width="1" x1="719" y1="358" x2="719" y2="357"/>
+<circle cx="719" cy="357" r="4" opacity="1" fill="none" stroke="#D55E00" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#E69F00" stroke-width="2" points="103,311 411,182 719,107 "/>
 <circle cx="103" cy="311" r="4" opacity="1" fill="#E69F00" stroke="none" stroke-width="1"/>
-<circle cx="411" cy="204" r="4" opacity="1" fill="#E69F00" stroke="none" stroke-width="1"/>
-<circle cx="719" cy="102" r="4" opacity="1" fill="#E69F00" stroke="none" stroke-width="1"/>
+<circle cx="411" cy="182" r="4" opacity="1" fill="#E69F00" stroke="none" stroke-width="1"/>
+<circle cx="719" cy="107" r="4" opacity="1" fill="#E69F00" stroke="none" stroke-width="1"/>
 <line opacity="1" stroke="#E69F00" stroke-width="1" x1="99" y1="312" x2="107" y2="312"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="99" y1="309" x2="107" y2="309"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="103" y1="312" x2="103" y2="309"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="99" y1="310" x2="107" y2="310"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="103" y1="312" x2="103" y2="310"/>
 <circle cx="103" cy="311" r="4" opacity="1" fill="none" stroke="#E69F00" stroke-width="1"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="407" y1="209" x2="415" y2="209"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="407" y1="198" x2="415" y2="198"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="411" y1="209" x2="411" y2="198"/>
-<circle cx="411" cy="204" r="4" opacity="1" fill="none" stroke="#E69F00" stroke-width="1"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="715" y1="107" x2="723" y2="107"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="715" y1="88" x2="723" y2="88"/>
-<line opacity="1" stroke="#E69F00" stroke-width="1" x1="719" y1="107" x2="719" y2="88"/>
-<circle cx="719" cy="102" r="4" opacity="1" fill="none" stroke="#E69F00" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#009E73" stroke-width="2" points="103,376 411,356 719,344 "/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="407" y1="188" x2="415" y2="188"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="407" y1="180" x2="415" y2="180"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="411" y1="188" x2="411" y2="180"/>
+<circle cx="411" cy="182" r="4" opacity="1" fill="none" stroke="#E69F00" stroke-width="1"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="715" y1="111" x2="723" y2="111"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="715" y1="101" x2="723" y2="101"/>
+<line opacity="1" stroke="#E69F00" stroke-width="1" x1="719" y1="111" x2="719" y2="101"/>
+<circle cx="719" cy="107" r="4" opacity="1" fill="none" stroke="#E69F00" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#009E73" stroke-width="2" points="103,376 411,356 719,345 "/>
 <circle cx="103" cy="376" r="4" opacity="1" fill="#009E73" stroke="none" stroke-width="1"/>
 <circle cx="411" cy="356" r="4" opacity="1" fill="#009E73" stroke="none" stroke-width="1"/>
-<circle cx="719" cy="344" r="4" opacity="1" fill="#009E73" stroke="none" stroke-width="1"/>
+<circle cx="719" cy="345" r="4" opacity="1" fill="#009E73" stroke="none" stroke-width="1"/>
 <line opacity="1" stroke="#009E73" stroke-width="1" x1="99" y1="376" x2="107" y2="376"/>
 <line opacity="1" stroke="#009E73" stroke-width="1" x1="99" y1="376" x2="107" y2="376"/>
 <line opacity="1" stroke="#009E73" stroke-width="1" x1="103" y1="376" x2="103" y2="376"/>
@@ -236,22 +252,26 @@ capacity
 <line opacity="1" stroke="#009E73" stroke-width="1" x1="407" y1="356" x2="415" y2="356"/>
 <line opacity="1" stroke="#009E73" stroke-width="1" x1="411" y1="356" x2="411" y2="356"/>
 <circle cx="411" cy="356" r="4" opacity="1" fill="none" stroke="#009E73" stroke-width="1"/>
-<line opacity="1" stroke="#009E73" stroke-width="1" x1="715" y1="344" x2="723" y2="344"/>
-<line opacity="1" stroke="#009E73" stroke-width="1" x1="715" y1="344" x2="723" y2="344"/>
-<line opacity="1" stroke="#009E73" stroke-width="1" x1="719" y1="344" x2="719" y2="344"/>
-<circle cx="719" cy="344" r="4" opacity="1" fill="none" stroke="#009E73" stroke-width="1"/>
-<rect x="529" y="47" width="210" height="63" opacity="0.9" fill="#FFFFFF" stroke="none"/>
-<rect x="529" y="47" width="210" height="63" opacity="1" fill="none" stroke="#C8C8C8"/>
+<line opacity="1" stroke="#009E73" stroke-width="1" x1="715" y1="346" x2="723" y2="346"/>
+<line opacity="1" stroke="#009E73" stroke-width="1" x1="715" y1="345" x2="723" y2="345"/>
+<line opacity="1" stroke="#009E73" stroke-width="1" x1="719" y1="346" x2="719" y2="345"/>
+<circle cx="719" cy="345" r="4" opacity="1" fill="none" stroke="#009E73" stroke-width="1"/>
+<rect x="529" y="47" width="210" height="79" opacity="0.9" fill="#FFFFFF" stroke="none"/>
+<rect x="529" y="47" width="210" height="79" opacity="1" fill="none" stroke="#C8C8C8"/>
 <text x="569" y="57" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="10.483870967741936" opacity="1" fill="#000000">
 LockFreeQueue (this crate)
 </text>
 <text x="569" y="73" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="10.483870967741936" opacity="1" fill="#000000">
-crossbeam ArrayQueue + spin
+ScqQueue (this crate)
 </text>
 <text x="569" y="90" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="10.483870967741936" opacity="1" fill="#000000">
+crossbeam ArrayQueue + spin
+</text>
+<text x="569" y="106" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="10.483870967741936" opacity="1" fill="#000000">
 BlockingQueue (this crate)
 </text>
 <polyline fill="none" opacity="1" stroke="#0072B2" stroke-width="3" points="539,62 561,62 "/>
-<polyline fill="none" opacity="1" stroke="#E69F00" stroke-width="3" points="539,78 561,78 "/>
-<polyline fill="none" opacity="1" stroke="#009E73" stroke-width="3" points="539,95 561,95 "/>
+<polyline fill="none" opacity="1" stroke="#D55E00" stroke-width="3" points="539,78 561,78 "/>
+<polyline fill="none" opacity="1" stroke="#E69F00" stroke-width="3" points="539,95 561,95 "/>
+<polyline fill="none" opacity="1" stroke="#009E73" stroke-width="3" points="539,111 561,111 "/>
 </svg>

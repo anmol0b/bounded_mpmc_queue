@@ -10,9 +10,9 @@
 //! the interesting numbers are percentiles and CPU, not a mean.
 //!
 //! ```text
-//! cargo bench --bench latency
+//! cargo bench -p parkring-bench --bench latency
 //! ```
-//! Writes `target/latency/latency.json` for `cargo run --example plot`.
+//! Writes `target/latency/latency.json` for `cargo run -p parkring-bench --example plot`.
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
@@ -26,12 +26,15 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
 use common::{BenchQueue, Crossbeam, StdChannel};
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue};
 
 const SAMPLES: usize = 2000;
 const GAP: Duration = Duration::from_millis(2);
 
+/// Process CPU time (user + system). Unix only; elsewhere the idle-CPU
+/// column reads 0 and only latency is meaningful.
+#[cfg(unix)]
 fn cpu_time() -> Duration {
     // SAFETY: `getrusage` only writes into the zeroed struct we pass it.
     let usage = unsafe {
@@ -44,6 +47,11 @@ fn cpu_time() -> Duration {
             + Duration::from_micros(u64::try_from(t.tv_usec).unwrap_or(0))
     };
     tv(usage.ru_utime) + tv(usage.ru_stime)
+}
+
+#[cfg(not(unix))]
+fn cpu_time() -> Duration {
+    Duration::ZERO
 }
 
 struct Report {
@@ -100,6 +108,7 @@ fn main() {
     }
     let reports = [
         measure::<LockFreeQueue<u64>>(),
+        measure::<ScqQueue<u64>>(),
         measure::<Crossbeam>(),
         measure::<BlockingQueue<u64>>(),
         measure::<StdChannel>(),
@@ -121,7 +130,7 @@ fn main() {
             )
         })
         .collect();
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/latency");
+    let dir = parkring_bench::target_dir().join("latency");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("latency.json"),

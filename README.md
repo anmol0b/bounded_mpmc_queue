@@ -1,24 +1,29 @@
-# bounded_mpmc_queue
+# parkring
 
-[![CI](https://github.com/anmol0b/bounded_mpmc_queue/actions/workflows/ci.yml/badge.svg)](https://github.com/anmol0b/bounded_mpmc_queue/actions/workflows/ci.yml)
+[![CI](https://github.com/anmol0b/parkring/actions/workflows/ci.yml/badge.svg)](https://github.com/anmol0b/parkring/actions/workflows/ci.yml)
 ![MSRV 1.85](https://img.shields.io/badge/MSRV-1.85-blue)
 ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Bounded multi-producer multi-consumer queues in std-only Rust.
+Concurrency primitives in Rust, each implemented from its paper, checked with
+the [loom](https://docs.rs/loom) model checker and Miri, and benchmarked
+against the established crate for the job.
 
-* **`LockFreeQueue`**: Dmitry Vyukov's per-slot sequence ring. The fast path is
-  one CAS plus one `Release` store with no locks. Blocked threads spin briefly,
-  then **park**, so a consumer waiting on an idle queue uses no CPU.
-* **`BlockingQueue`**: one `Mutex` and two `Condvar`s, the obviously-correct
-  reference implementation.
+| | what it is | compared with |
+|---|---|---|
+| `LockFreeQueue` | Vyukov's bounded MPMC ring with spin-then-park waiting | crossbeam `ArrayQueue` |
+| `ScqQueue` | Nikolaev's SCQ (DISC 2019): fetch-add claims, genuinely lock-free | the Vyukov queue |
+| `BlockingQueue` | mutex + two condvars, the reference implementation | |
+| `Worker` / `Stealer` | Chase-Lev work-stealing deque with weak-memory-correct fences | crossbeam-deque |
+| `ThreadPool`, `join` | a work-stealing pool built from the pieces above | Rayon |
 
-Both support blocking, non-blocking and timed operations, plus `close()` with
-drain semantics. Both are verified with **loom** model checking, **Miri**,
-property-based tests, and drop accounting.
+Waiting threads spin briefly, then park on a futex (`futex(2)` on Linux,
+`__ulock` on macOS; `Condvar` elsewhere), so an idle thread uses no CPU. The
+only dependency is `libc`.
 
 ```rust
-use bounded_mpmc_queue::LockFreeQueue;
+use parkring::{LockFreeQueue, ThreadPool, join};
 
+// A bounded queue with shutdown: consumers drain, then stop.
 let queue = LockFreeQueue::new(1024);
 std::thread::scope(|s| {
     let consumer = s.spawn(|| {
@@ -34,123 +39,116 @@ std::thread::scope(|s| {
     queue.close();
     assert_eq!(consumer.join().unwrap(), (0..10_000).sum());
 });
+
+// Fork-join parallelism on a work-stealing pool.
+fn fib(n: u64) -> u64 {
+    if n < 20 {
+        return if n < 2 { n } else { fib(n - 1) + fib(n - 2) };
+    }
+    let (a, b) = join(|| fib(n - 1), || fib(n - 2));
+    a + b
+}
+let pool = ThreadPool::new(4);
+assert_eq!(pool.install(|| fib(25)), 75_025);
 ```
 
-## API
+## What the verification found
 
-| | blocking | non-blocking | timed |
-|---|---|---|---|
-| push | `push(T) -> Result<(), PushError<T>>` | `try_push(T) -> Result<(), TryPushError<T>>` | `push_timeout(T, Duration)` |
-| pop | `pop() -> Result<T, PopError>` | `try_pop() -> Result<T, TryPopError>` | `pop_timeout(Duration)` |
+The tests were written to fail on real bugs, and they did. Each item links to
+the write-up.
 
-Plus `close`, `is_closed`, `len`, `is_empty`, `is_full` and `capacity`. Every
-failed push hands the item back. `try_*` never fails spuriously: `Full` and
-`Empty` are reported only after confirming the queue really was full or empty.
-
-| | `LockFreeQueue` | `BlockingQueue` |
-|---|---|---|
-| Fast path | one CAS + one `Release` store | one mutex acquisition |
-| Waiting | spin, yield, then park | park |
-| Capacity | next power of two, minimum 2 | exact |
-| Scales with threads | yes | serialises on the mutex |
+* **The original take-home submission** failed spuriously in `try_push`, lost
+  items at non-power-of-two capacities, and spun forever when idle
+  ([DESIGN.md §9](docs/DESIGN.md#9-what-the-original-submission-got-wrong)).
+* **A capacity-1 overwrite** in the Vyukov ring, found by drop accounting and
+  independently by proptest, which shrank it to capacity 1 (DESIGN.md §5).
+* **A lost wakeup loom could not verify**, because loom treats `SeqCst`
+  accesses as `AcqRel`. The parking protocol was re-derived on
+  read-modify-writes and release sequences, which loom does model, and the hot
+  path got cheaper (DESIGN.md §4).
+* **A hole in the SCQ paper's threshold bound**: with more threads than
+  capacity, an item could be stranded forever. A stress test hung 11 times in
+  40; the fix and the reasoning are in [SCQ.md §4](docs/SCQ.md).
+* **The classic Chase-Lev double take**: remove either `SeqCst` fence and loom
+  produces `an element was taken twice: [0, 1, 1]`. CI builds each mutant and
+  requires that failure ([DEQUE.md §3](docs/DEQUE.md)).
+* **Two aliasing violations Miri caught and loom could not**: retiring a
+  deque buffer through `Box::from_raw` retags memory a thief may still be
+  reading ([DEQUE.md §6](docs/DEQUE.md)), and a latch's `&self` argument stayed
+  protected while the waiting thread freed it ([POOL.md](docs/POOL.md)).
 
 ## Results
 
-Measured on an Apple M4 in million items per second. Higher is better.
+Apple M4, million items per second (higher is better) unless stated.
+Full tables and methodology: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
-| workload | `LockFreeQueue` | crossbeam `ArrayQueue` | `BlockingQueue` |
-|---|---|---|---|
-| 1 producer + 1 consumer | 90.9 | 83.5 | 14.8 |
-| 4 + 4 | 46.2 | 49.7 | 7.1 |
-| 8 + 8 (oversubscribed) | 45.8 | 51.8 | 6.9 |
+| | parkring | reference |
+|---|---|---|
+| queue, 1 producer + 1 consumer | 91 (`LockFreeQueue`) | 80 (crossbeam) |
+| queue, 8 + 8 | 51 | 57 (crossbeam) |
+| queue, 8 + 8, `ScqQueue` | 7 | 51 (`LockFreeQueue`) |
+| deque, one thief draining | 85 | 70 (crossbeam-deque) |
+| pool, `fib(32)` on 8 threads | 1.36 ms | 1.36 ms (Rayon) |
+| parked consumer: wake latency / idle CPU | 9.4 µs / 1.7% | 0.3 µs / 100% (crossbeam, spinning) |
 
-Under contention the lock-free queue moves 6–7× as many items as the mutex
-queue and stays within about 10% of crossbeam. crossbeam still wins the
-asymmetric shapes.
+The losses are reported as plainly as the wins: crossbeam's queue is faster
+under contention, and SCQ, despite its stronger progress guarantee, is 5–8×
+slower than the Vyukov queue on this hardware.
+[SCQ.md §7](docs/SCQ.md) profiles why.
 
 ![Throughput scaling](assets/mpmc_scaling.svg)
-
-The design's point is the idle case. crossbeam's queue has no blocking API, so a
-waiting consumer has to spin. It wakes in half a microsecond but burns a whole
-core. `LockFreeQueue` parks: it wakes in about 10 µs and uses under 2% of a core.
-
 ![Wake latency against idle CPU](assets/wake_latency.svg)
-
-Full tables, methodology and caveats are in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
-
-## How it works
-
-Each slot carries a sequence number that says which position it is ready
-for. A producer claims position `p` with a CAS on `tail` once the slot's
-sequence equals `p`, writes, and publishes `p + 1` with a `Release` store. A
-consumer claims `p` once it sees `p + 1`, reads, and recycles the slot for the
-next lap by storing `p + capacity`. Producers and consumers on different slots
-never touch the same cache line.
-
-Waiting threads register in a `WaitQueue` and re-check the queue with a
-read-modify-write before blocking. That RMW pairs with the notifier's CAS
-through a release sequence, which rules out lost wakeups while keeping the
-fast path to one `Relaxed` load when nobody is parked. `close()` sets the top
-bit of `tail`, which orders it against every push without an extra flag.
-
-[docs/DESIGN.md](docs/DESIGN.md) has the full argument: the happens-before
-diagram, the lost-wakeup proof, why close is a mark bit, and why the minimum
-capacity is 2.
+![Pool scaling](assets/pool_scaling.svg)
 
 ## Verification
 
-| | what it establishes |
+| | covers |
 |---|---|
-| [loom](https://docs.rs/loom) | every interleaving of 2–3 threads is free of lost wakeups, close races, spurious `try_*` failures and data races |
-| Miri | no undefined behaviour in the `unsafe` slot code: no uninitialised reads, double drops, leaks or aliasing violations |
-| proptest | random operation sequences match a `VecDeque` model for capacities 1–17 |
-| concurrent tests | exactly-once delivery and per-producer FIFO across many shapes and capacities |
-| drop accounting | every item is dropped exactly once, including after wraparound, close and rejection |
-| `getrusage` | a parked consumer uses about 50 µs of CPU over 300 ms |
-
-The tests have teeth. Replacing the waiter's RMW with a plain load makes loom
-report a deadlock, and removing the minimum capacity makes proptest shrink to a
-capacity-1 counterexample.
+| loom | every interleaving (up to a preemption bound) of the parking protocol, close races, both queues' claims, the deque's pop/steal races, and the pool's sleep/wake; three deliberately broken builds must fail |
+| Miri | the `unsafe` code in every component: uninitialised reads, double drops, leaks, aliasing, data races, and the real `futex` system call on Linux |
+| proptest | each queue against a `VecDeque` model (capacities 1–17), the deque against a `VecDeque` with wrapping indices |
+| concurrency tests | exactly-once delivery and per-producer FIFO across many shapes; per-thief ordering for the deque; repeated runs to flush out rare schedules |
+| `getrusage` | parked queues and an idle pool use about 35–55 µs of CPU over 300 ms |
 
 ```sh
-cargo test                                               # 82 tests + doctests
-cargo test --release --test cpu_burn -- --ignored        # idle CPU check
-RUSTFLAGS="--cfg loom" cargo test --release --test loom  # model checking
-cargo +nightly miri test --lib --test drop_semantics --test regressions
-cargo bench && cargo run --release --example plot        # regenerate charts
+cargo test --workspace
+RUSTFLAGS="--cfg loom" cargo test -p parkring --release --test loom --test loom_scq --test loom_pool
+RUSTFLAGS="--cfg loom" cargo test -p parkring --release --lib deque
+cargo +nightly miri test -p parkring --target x86_64-unknown-linux-gnu
+cargo bench -p parkring-bench && cargo run -p parkring-bench --release --example plot
 ```
+
+CI runs all of it on Linux, macOS and Windows, plus the MSRV, docs, a FreeBSD
+check, both parkers under loom, and the loom mutants.
+
+## Documentation
+
+* [DESIGN.md](docs/DESIGN.md): the Vyukov queue, parking, and closing.
+* [SCQ.md](docs/SCQ.md): the fetch-add queue, its departures from the paper,
+  and why it is slower here.
+* [DEQUE.md](docs/DEQUE.md): the work-stealing deque and its memory orderings.
+* [POOL.md](docs/POOL.md): the thread pool.
+* [BENCHMARKS.md](docs/BENCHMARKS.md): methodology and every measurement.
 
 ## Project history
 
-This crate began as a take-home assignment. The submitted version passed its
-own tests but had real defects: `try_push` failed spuriously under contention,
-non-power-of-two capacities lost items, blocked threads spun forever, and the
-benchmarks mostly timed `thread::spawn`. Version 0.2 is the result of auditing
-that submission. [DESIGN.md §9](docs/DESIGN.md#9-what-the-original-submission-got-wrong)
-lists each defect with the evidence and the fix, and the git history shows the
-steps.
+This crate began as a take-home assignment, published as `bounded_mpmc_queue`:
+a mutex queue and a Vyukov queue. Version 0.2 audited that submission, fixed
+its bugs and added parking, shutdown and the verification suite. Version 0.3
+renamed it to `parkring` and added futex parking, SCQ, the work-stealing deque
+and the pool. The git history shows each step.
 
 ## Layout
 
 ```text
 src/
-  queue/lockfree.rs    LockFreeQueue: sequence protocol, parking, close, Drop
-  queue/blocking.rs    BlockingQueue
-  queue/slot.rs        MaybeUninit slot and its safety contract
-  sync/wait_queue.rs   parking and the lost-wakeup argument
-  sync/primitives.rs   std/loom shim: the only place sync primitives come from
-  sync/pos.rs          63-bit position arithmetic and the closed bit
-  sync/backoff.rs      spin / snooze / park backoff
-tests/                 loom, proptest, drop accounting, regressions, CPU check
-benches/               throughput (criterion) and wake latency (custom harness)
-examples/plot.rs       regenerates assets/*.svg from benchmark output
+  queue/lockfree.rs     LockFreeQueue          queue/scq/     ScqQueue
+  queue/blocking.rs     BlockingQueue          deque/         Worker, Stealer
+  pool/                 ThreadPool, join       sync/futex/    futex backends
+  sync/wait_queue/      parking                sync/primitives.rs  std/loom shim
+tests/                  loom, proptest, drop accounting, regressions, CPU checks
+crates/parkring-bench/  benchmarks and chart generation (unpublished)
 ```
-
-## Not yet
-
-* `no_std + alloc` support for `LockFreeQueue`.
-* Async `push`/`pop`.
-* FIFO fairness among parked threads, which `Condvar` does not guarantee.
 
 ## License
 

@@ -7,9 +7,9 @@ mod common;
 use std::sync::Arc;
 use std::thread;
 
-use bounded_mpmc_queue::{BlockingQueue, LockFreeQueue};
 use common::drop_counter::{DropStats, Tracked};
 use common::{TestQueue, scale};
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue};
 
 fn empty_queue_drops_nothing<Q: TestQueue<Tracked>>() {
     let stats = DropStats::new();
@@ -151,3 +151,4 @@ macro_rules! drop_tests {
 
 drop_tests!(lockfree, LockFreeQueue);
 drop_tests!(blocking, BlockingQueue);
+drop_tests!(scq, ScqQueue);

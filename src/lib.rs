@@ -1,17 +1,22 @@
-//! Bounded multi-producer multi-consumer queues, in std-only Rust.
+//! Concurrency primitives built and verified from first principles: bounded
+//! MPMC queues, a work-stealing deque, and a work-stealing thread pool.
 //!
-//! | | [`LockFreeQueue`] | [`BlockingQueue`] |
-//! |---|---|---|
-//! | Fast path | one CAS + one `Release` store, no lock | one mutex acquisition |
-//! | Waiting | spin, yield, then park on a condvar | park on a condvar |
-//! | Capacity | rounded up to a power of two, minimum 2 | exact |
-//! | Scales with threads | yes | serialises on the mutex |
+//! | | what it is |
+//! |---|---|
+//! | [`LockFreeQueue`] | Vyukov's per-slot sequence ring. The recommended queue. |
+//! | [`ScqQueue`] | Nikolaev's SCQ: fetch-add claims, genuinely lock-free, slower on this hardware |
+//! | [`BlockingQueue`] | one mutex, two condvars: the reference implementation |
+//! | [`Worker`] / [`Stealer`] | Chase-Lev work-stealing deque |
+//! | [`ThreadPool`], [`join`] | a work-stealing pool built from the pieces above |
 //!
-//! Both implement [`BoundedQueue`] and share one API:
+//! Blocked threads spin briefly, then park on a futex (`futex(2)` on Linux and
+//! Android, `__ulock` on macOS) or on std's `Condvar` elsewhere, so an idle
+//! thread does not burn a core. The only dependency is `libc`.
 //!
-//! * `push` / `pop` block (the lock-free queue parks after a short spin, so an
-//!   idle thread does not burn a core);
-//! * `try_push` / `try_pop` never block and never fail spuriously;
+//! The three queues implement [`BoundedQueue`] and share one API:
+//!
+//! * `push` / `pop` block;
+//! * `try_push` / `try_pop` never block;
 //! * `push_timeout` / `pop_timeout` give up after a deadline;
 //! * `close` rejects further pushes, wakes every waiter, and lets consumers
 //!   drain the remaining items before `pop` reports [`PopError`].
@@ -19,7 +24,7 @@
 //! Every failed push hands the item back inside the error.
 //!
 //! ```
-//! use bounded_mpmc_queue::LockFreeQueue;
+//! use parkring::LockFreeQueue;
 //!
 //! let queue = LockFreeQueue::new(64);
 //! std::thread::scope(|s| {
@@ -54,26 +59,50 @@
 //!
 //! ```compile_fail
 //! fn assert_sync<T: Sync>() {}
-//! assert_sync::<bounded_mpmc_queue::LockFreeQueue<std::rc::Rc<()>>>();
+//! assert_sync::<parkring::LockFreeQueue<std::rc::Rc<()>>>();
 //! ```
 //!
 //! ```compile_fail
 //! fn assert_sync<T: Sync>() {}
-//! assert_sync::<bounded_mpmc_queue::BlockingQueue<std::rc::Rc<()>>>();
+//! assert_sync::<parkring::BlockingQueue<std::rc::Rc<()>>>();
+//! ```
+//!
+//! ```compile_fail
+//! fn assert_sync<T: Sync>() {}
+//! assert_sync::<parkring::ScqQueue<std::rc::Rc<()>>>();
+//! ```
+//!
+//! A deque's [`Worker`] belongs to one thread at a time: it is `Send` but not
+//! `Sync`. [`Stealer`] is `Send + Sync`.
+//!
+//! ```compile_fail
+//! fn assert_sync<T: Sync>() {}
+//! assert_sync::<parkring::Worker<u32>>();
+//! ```
+//!
+//! ```compile_fail
+//! fn assert_send<T: Send>() {}
+//! assert_send::<parkring::Stealer<std::rc::Rc<()>>>();
 //! ```
 //!
 //! See `docs/DESIGN.md` in the repository for the memory-ordering argument
 //! and how it is verified with loom and Miri.
 
+mod deque;
 mod error;
+mod pool;
 mod queue;
 mod sync;
 mod traits;
 mod utils;
 
+pub use deque::{Steal, Stealer, Worker};
 pub use error::{
     PopError, PopTimeoutError, PushError, PushTimeoutError, TryPopError, TryPushError,
 };
+pub use pool::{ThreadPool, join};
+#[cfg(target_pointer_width = "64")]
+pub use queue::ScqQueue;
 pub use queue::{BlockingQueue, LockFreeQueue};
 pub use sync::Backoff;
 pub use traits::BoundedQueue;

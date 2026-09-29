@@ -126,17 +126,49 @@ the other in `tail`'s modification order:
   RMW, so it happens-before the producer's `waiters` load, which must see it.
   The producer then notifies.
 
-**Re-check versus blocking.** The waiter holds the mutex from registration until
-`Condvar::wait` atomically releases it, and `notify_one` must take the same
-mutex. A notification therefore either lands before the waiter's re-check,
-which then sees the item, or after the waiter is blocked, which it then wakes.
+**Re-check versus blocking.** On Linux, Android and macOS the waiter sleeps on
+a futex word, `epoch`, that every notification increments. The waiter reads
+`seen = epoch` *before* its re-check and then asks the kernel to sleep only
+while `epoch == seen`. A notifier increments `epoch` after its CAS, so a
+notification that lands between the re-check and the sleep has already changed
+the word, and the kernel's compare-and-sleep refuses to block. The waiter's
+read of `seen` happens-before the notifier's increment whenever the second
+case above applies, so by coherence `seen` is older.
 
-The mutex protects no data. It exists only to make "re-check, then block"
-atomic with respect to notify.
+On every other platform, and under `--cfg parkring_force_condvar`, a
+`Mutex<()>` + `Condvar` does the same job: the waiter holds the mutex from
+registration until `Condvar::wait` atomically releases it, and `notify_one`
+takes the same mutex. That mutex protects no data; it only makes "re-check,
+then block" atomic with respect to notify.
+
+**Skipping the wake system call.** A registered waiter is often still awake:
+spinning, re-checking, or just woken by an earlier notification. The first
+futex version called `futex_wake` whenever any thread was registered, which
+cost one system call per queue operation under churn and made throughput worse
+than the condvar version. The fix counts threads actually about to sleep
+(`sleepers`) and wakes only if that count is non-zero. That opens a second
+store-buffering race (the notifier writes `epoch` then reads `sleepers`; the
+waiter writes `sleepers` then the kernel reads `epoch`), closed by one
+`fence(SeqCst)` on each side. Both fences are on the slow path. Removing
+either one makes loom report a deadlock.
 
 **Hot-path cost.** When nobody is parked, a successful push or pop pays one
-`Relaxed` load of a read-mostly counter on its own cache line. Parked threads
-cost the notifier one uncontended lock and a `notify_one`.
+`Relaxed` load of a read-mostly counter on its own cache line. When a thread is
+registered, the notifier pays an increment and a fence, and a system call only
+if someone is asleep.
+
+**Measured effect.** On an Apple M4, parking on `__ulock` instead of a pthread
+condvar lowers the median wake latency of a parked consumer by about 10%
+(8.5–8.8 µs against 9.4–10.0 µs over three interleaved runs), with a lower p99
+in every run. The floor is the kernel waking an idle core, which no parking
+scheme avoids. Contended throughput is unchanged within noise.
+
+**Why `__ulock` on macOS.** It is a private but ABI-stable libSystem call
+(libc++ implements `std::atomic::wait` on it). Rust's standard library avoids it
+only because App Store review rejects private symbols; a crate user building an
+App Store app can pass `--cfg parkring_force_condvar`. Miri has no `__ulock`
+shim, so Miri on macOS uses the condvar fallback; CI runs Miri on Linux, which
+interprets the real `futex` system call.
 
 ### How loom changed this design
 
@@ -155,7 +187,9 @@ The fast path uses `notify_one`: each push wakes at most one consumer. A woken
 consumer that loses the item to a spinning one re-checks and parks again. A
 woken thread stays counted in `waiters` until it leaves `wait_until`, so a
 second push still notifies and reaches the second parked thread. Loom checks
-this with two parked consumers and two pushes. `close` uses `notify_all`.
+this with two parked consumers and two pushes, and checks that `close` still
+serves the second consumer after a push woke the first. `close` uses
+`notify_all`.
 
 ### Timeouts
 

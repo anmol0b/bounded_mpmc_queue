@@ -7,18 +7,29 @@
 //!
 //! [loom]: https://docs.rs/loom
 
+// Not every configuration uses every primitive (e.g. `AtomicU32` is only
+// needed by the futex parker).
 #[cfg(loom)]
+#[allow(unused_imports)]
 pub(crate) use loom::{
     cell::UnsafeCell,
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::{Condvar, Mutex, MutexGuard},
+    sync::atomic::{AtomicIsize, AtomicPtr, AtomicU32, AtomicUsize, Ordering, fence},
+    sync::{Arc, Condvar, Mutex, MutexGuard},
     thread,
 };
 
+/// `thread_local!` must be loom's under loom: loom runs every simulated thread
+/// on one OS thread, so a std thread-local would be shared between them.
+#[cfg(loom)]
+pub(crate) use loom::thread_local;
 #[cfg(not(loom))]
+pub(crate) use std::thread_local;
+
+#[cfg(not(loom))]
+#[allow(unused_imports)]
 pub(crate) use std::{
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::{Condvar, Mutex, MutexGuard},
+    sync::atomic::{AtomicIsize, AtomicPtr, AtomicU32, AtomicUsize, Ordering, fence},
+    sync::{Arc, Condvar, Mutex, MutexGuard},
     thread,
 };
 

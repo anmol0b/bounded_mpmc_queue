@@ -3,7 +3,7 @@
 
 use std::cell::Cell;
 
-use bounded_mpmc_queue::{BlockingQueue, BoundedQueue, LockFreeQueue};
+use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue, ScqQueue, Stealer, Worker};
 
 fn assert_send_sync<T: Send + Sync>() {}
 
@@ -14,6 +14,17 @@ fn queues_are_send_and_sync_for_send_items() {
     // `T: Send` is enough: items are moved between threads, never shared.
     assert_send_sync::<LockFreeQueue<Cell<u32>>>();
     assert_send_sync::<BlockingQueue<Cell<u32>>>();
+    assert_send_sync::<ScqQueue<String>>();
+    assert_send_sync::<ScqQueue<Cell<u32>>>();
+}
+
+fn assert_send<T: Send>() {}
+
+#[test]
+fn deque_handles_have_the_right_auto_traits() {
+    assert_send::<Worker<String>>();
+    assert_send_sync::<Stealer<String>>();
+    assert_send_sync::<Stealer<Cell<u32>>>();
 }
 
 #[test]

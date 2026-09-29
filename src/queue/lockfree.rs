@@ -40,7 +40,7 @@ use crate::utils::CachePadded;
 /// # Example
 ///
 /// ```
-/// use bounded_mpmc_queue::LockFreeQueue;
+/// use parkring::LockFreeQueue;
 ///
 /// let q = LockFreeQueue::new(3);
 /// assert_eq!(q.capacity(), 4); // rounded up
@@ -254,8 +254,9 @@ impl<T> LockFreeQueue<T> {
     }
 
     /// Wake condition for parked producers: the mirror image on `head`.
-    /// Closing is seen through the mutex `close` takes, so a stale `tail`
-    /// is harmless here too.
+    /// `close` wakes every parked thread through the wait queue, which makes
+    /// the closed flag visible (via the mutex in the fallback, via the epoch's
+    /// Release/Acquire pair with a futex), so a stale `tail` is harmless.
     fn push_ready(&self) -> bool {
         let head = self.head.fetch_add(0, AcqRel);
         let tail = self.tail.load(Relaxed);
@@ -457,7 +458,7 @@ mod tests {
 
     #[test]
     fn drop_after_wrap_releases_exactly_the_live_items() {
-        use std::sync::Arc;
+        use crate::sync::Arc;
         let marker = Arc::new(());
         let q = LockFreeQueue::with_start_position(4, POS_MASK - 1);
         for _ in 0..4 {

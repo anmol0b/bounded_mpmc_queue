@@ -9,9 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo bench --bench throughput
-      - run: cargo bench --bench latency
-      - run: cargo run --release --example plot > bench-tables.md
+      - run: cargo bench -p parkring-bench --bench throughput
+      - run: cargo bench -p parkring-bench --bench latency
+      - run: cargo run -p parkring-bench --release --example plot > bench-tables.md
       - uses: actions/upload-artifact@v4
         with:
           name: benchmarks

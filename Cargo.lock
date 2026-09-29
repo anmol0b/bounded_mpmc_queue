@@ -51,19 +51,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
 
 [[package]]
-name = "bounded_mpmc_queue"
-version = "0.2.0"
-dependencies = [
- "criterion",
- "crossbeam-queue",
- "libc",
- "loom",
- "plotters",
- "proptest",
- "serde_json",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -425,6 +412,29 @@ name = "oorandom"
 version = "11.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
+
+[[package]]
+name = "parkring"
+version = "0.3.0"
+dependencies = [
+ "libc",
+ "loom",
+ "proptest",
+]
+
+[[package]]
+name = "parkring-bench"
+version = "0.3.0"
+dependencies = [
+ "criterion",
+ "crossbeam-deque",
+ "crossbeam-queue",
+ "libc",
+ "parkring",
+ "plotters",
+ "rayon",
+ "serde_json",
+]
 
 [[package]]
 name = "pin-project-lite"
