@@ -3,7 +3,7 @@
 
 use std::cell::Cell;
 
-use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue, ScqQueue};
+use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue, ScqQueue, Stealer, Worker};
 
 fn assert_send_sync<T: Send + Sync>() {}
 
@@ -16,6 +16,15 @@ fn queues_are_send_and_sync_for_send_items() {
     assert_send_sync::<BlockingQueue<Cell<u32>>>();
     assert_send_sync::<ScqQueue<String>>();
     assert_send_sync::<ScqQueue<Cell<u32>>>();
+}
+
+fn assert_send<T: Send>() {}
+
+#[test]
+fn deque_handles_have_the_right_auto_traits() {
+    assert_send::<Worker<String>>();
+    assert_send_sync::<Stealer<String>>();
+    assert_send_sync::<Stealer<Cell<u32>>>();
 }
 
 #[test]

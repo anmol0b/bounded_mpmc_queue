@@ -129,7 +129,7 @@ impl Futex {
 #[cfg(all(test, not(loom)))]
 mod tests {
     use super::*;
-    use std::sync::Arc;
+    use crate::sync::Arc;
     use std::thread;
     use std::time::Instant;
 

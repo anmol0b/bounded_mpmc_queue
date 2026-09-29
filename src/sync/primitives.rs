@@ -13,16 +13,16 @@
 #[allow(unused_imports)]
 pub(crate) use loom::{
     cell::UnsafeCell,
-    sync::atomic::{AtomicIsize, AtomicU32, AtomicUsize, Ordering, fence},
-    sync::{Condvar, Mutex, MutexGuard},
+    sync::atomic::{AtomicIsize, AtomicPtr, AtomicU32, AtomicUsize, Ordering, fence},
+    sync::{Arc, Condvar, Mutex, MutexGuard},
     thread,
 };
 
 #[cfg(not(loom))]
 #[allow(unused_imports)]
 pub(crate) use std::{
-    sync::atomic::{AtomicIsize, AtomicU32, AtomicUsize, Ordering, fence},
-    sync::{Condvar, Mutex, MutexGuard},
+    sync::atomic::{AtomicIsize, AtomicPtr, AtomicU32, AtomicUsize, Ordering, fence},
+    sync::{Arc, Condvar, Mutex, MutexGuard},
     thread,
 };
 

@@ -70,15 +70,30 @@
 //! assert_sync::<parkring::ScqQueue<std::rc::Rc<()>>>();
 //! ```
 //!
+//! A deque's [`Worker`] belongs to one thread at a time: it is `Send` but not
+//! `Sync`. [`Stealer`] is `Send + Sync`.
+//!
+//! ```compile_fail
+//! fn assert_sync<T: Sync>() {}
+//! assert_sync::<parkring::Worker<u32>>();
+//! ```
+//!
+//! ```compile_fail
+//! fn assert_send<T: Send>() {}
+//! assert_send::<parkring::Stealer<std::rc::Rc<()>>>();
+//! ```
+//!
 //! See `docs/DESIGN.md` in the repository for the memory-ordering argument
 //! and how it is verified with loom and Miri.
 
+mod deque;
 mod error;
 mod queue;
 mod sync;
 mod traits;
 mod utils;
 
+pub use deque::{Steal, Stealer, Worker};
 pub use error::{
     PopError, PopTimeoutError, PushError, PushTimeoutError, TryPopError, TryPushError,
 };

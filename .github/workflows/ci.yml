@@ -31,7 +31,7 @@ jobs:
           cargo check -p parkring --lib --target x86_64-unknown-freebsd
       - name: std sync primitives only via src/sync/primitives.rs
         run: |
-          if grep -rnE 'std::(sync::(atomic|Mutex|Condvar|MutexGuard)|cell::UnsafeCell)' src \
+          if grep -rnE 'std::(sync::(atomic|Mutex|Condvar|MutexGuard|Arc)|cell::UnsafeCell)' src \
                --include='*.rs' | grep -v '^src/sync/primitives.rs:'; then
             echo "::error::use crate::sync so loom can model every primitive"
             exit 1
@@ -98,23 +98,34 @@ jobs:
         with:
           key: loom-${{ matrix.parker }}
       - run: cargo test -p parkring --release --test loom --test loom_scq
+      - run: cargo test -p parkring --release --lib deque
 
   loom-mutants:
-    name: loom catches a broken SCQ threshold
+    name: loom catches ${{ matrix.mutant }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mutant: scq_conditional_threshold
+            test: --test loom_scq fifo_across_laps
+          - mutant: deque_no_pop_fence
+            test: --lib deque::loom_tests::pop_racing_two_steals_never_double_takes
+          - mutant: deque_no_steal_fence
+            test: --lib deque::loom_tests::pop_racing_two_steals_never_double_takes
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: --cfg loom --cfg parkring_mutant="scq_conditional_threshold"
+      RUSTFLAGS: --cfg loom --cfg parkring_mutant="${{ matrix.mutant }}"
       LOOM_MAX_PREEMPTIONS: 3
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          key: loom-mutant
-      - name: the mutant must fail
+          key: loom-mutant-${{ matrix.mutant }}
+      - name: the deliberately broken build must fail
         run: |
-          if cargo test -p parkring --release --test loom_scq fifo_across_laps; then
-            echo "::error::loom no longer detects the conditional threshold reset"
+          if cargo test -p parkring --release ${{ matrix.test }}; then
+            echo "::error::loom no longer detects ${{ matrix.mutant }}"
             exit 1
           fi
 
@@ -131,7 +142,7 @@ jobs:
       - run: cargo miri setup
       - run: >
           cargo miri test -p parkring --lib --test drop_semantics --test send_sync
-          --test regressions --test linearizability --test proptest_model
+          --test regressions --test linearizability --test proptest_model --test deque
 
   bench-smoke:
     name: benchmarks compile

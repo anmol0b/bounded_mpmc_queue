@@ -458,7 +458,7 @@ mod tests {
 
     #[test]
     fn drop_after_wrap_releases_exactly_the_live_items() {
-        use std::sync::Arc;
+        use crate::sync::Arc;
         let marker = Arc::new(());
         let q = LockFreeQueue::with_start_position(4, POS_MASK - 1);
         for _ in 0..4 {

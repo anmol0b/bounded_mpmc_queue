@@ -27,6 +27,12 @@ adheres to [Semantic Versioning](https://semver.org/).
   10-core Apple M4 it is 5–7× slower than `LockFreeQueue`; `docs/SCQ.md`
   explains why, with profiling, and documents a case where the paper's
   threshold bound does not hold (more threads than capacity).
+- `Worker` / `Stealer`: a Chase-Lev work-stealing deque with the Lê et al.
+  (PPoPP 2013) orderings adapted to C++20. Slots are atomic pointers, so a
+  thief's racing read is sound (values are boxed). Loom reproduces the classic
+  double take when either `SeqCst` fence is removed; CI requires it. Miri found
+  and the retire list now avoids an aliasing violation on grown buffers. See
+  `docs/DEQUE.md`.
 - Loom models for `close` after one of two parked consumers is woken, and for
   a timed pop racing a push. CI runs the loom suite against both parkers.
 - CI tests on Windows and type-checks FreeBSD, both on the portable parker.
