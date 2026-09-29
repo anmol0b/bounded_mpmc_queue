@@ -26,12 +26,13 @@ use serde_json::Value;
 type Res<T> = Result<T, Box<dyn Error>>;
 
 /// Okabe-Ito colours: distinguishable with every common colour-vision deficiency.
-const QUEUES: [(&str, &str, RGBColor); 4] = [
+const QUEUES: [(&str, &str, RGBColor); 5] = [
     (
         "lockfree",
         "LockFreeQueue (this crate)",
         RGBColor(0, 114, 178),
     ),
+    ("scq", "ScqQueue (this crate)", RGBColor(213, 94, 0)),
     (
         "crossbeam",
         "crossbeam ArrayQueue + spin",
@@ -337,6 +338,122 @@ fn latency_chart(path: &Path, rows: &[Value]) -> Res<()> {
     Ok(())
 }
 
+/// One benchmark of the deque and pool groups: `function/value`, median
+/// time per iteration in ns, and elements per iteration if recorded.
+struct Raw {
+    function: String,
+    value: String,
+    median_ns: f64,
+    elements: Option<f64>,
+}
+
+fn load_group(root: &Path, group: &str) -> Res<Vec<Raw>> {
+    let mut runs = Vec::new();
+    let dir = root.join(group);
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    find_runs(&dir, &mut runs)?;
+    let mut out = Vec::new();
+    for run in runs {
+        let meta: Value = serde_json::from_str(&fs::read_to_string(run.join("benchmark.json"))?)?;
+        let est: Value = serde_json::from_str(&fs::read_to_string(run.join("estimates.json"))?)?;
+        out.push(Raw {
+            function: meta["function_id"].as_str().unwrap_or_default().to_owned(),
+            value: meta["value_str"].as_str().unwrap_or_default().to_owned(),
+            median_ns: est["median"]["point_estimate"]
+                .as_f64()
+                .ok_or("no median")?,
+            elements: meta["throughput"]["Elements"].as_f64(),
+        });
+    }
+    out.sort_by(|a, b| (&a.function, &a.value).cmp(&(&b.function, &b.value)));
+    Ok(out)
+}
+
+fn raw_table(title: &str, rows: &[Raw]) {
+    if rows.is_empty() {
+        return;
+    }
+    println!("\n### {title}\n");
+    println!("| implementation | parameter | median | throughput |");
+    println!("|---|---|---|---|");
+    for r in rows {
+        let time = if r.median_ns >= 1e6 {
+            format!("{:.2} ms", r.median_ns / 1e6)
+        } else {
+            format!("{:.1} µs", r.median_ns / 1e3)
+        };
+        let rate = r.elements.map_or_else(String::new, |e| {
+            format!("{:.1} Melem/s", e / r.median_ns * 1e3)
+        });
+        println!("| {} | {} | {time} | {rate} |", r.function, r.value);
+    }
+}
+
+/// Speedup over the sequential run, per thread count, for each pool.
+fn pool_chart(path: &Path, title: &str, rows: &[Raw]) -> Res<()> {
+    let Some(sequential) = rows.iter().find(|r| r.function == "sequential") else {
+        return Ok(());
+    };
+    let root = SVGBackend::new(path, (760, 440)).into_drawing_area();
+    root.fill(&WHITE)?;
+    let speedups: Vec<(&str, f64, f64)> = rows
+        .iter()
+        .filter(|r| r.function != "sequential")
+        .filter_map(|r| {
+            Some((
+                r.function.as_str(),
+                r.value.parse::<f64>().ok()?,
+                sequential.median_ns / r.median_ns,
+            ))
+        })
+        .collect();
+    let y_max = speedups.iter().map(|s| s.2).fold(1.0, f64::max) * 1.2;
+    let mut chart = ChartBuilder::on(&root)
+        .caption(title, (FONT, 20))
+        .margin(16)
+        .x_label_area_size(44)
+        .y_label_area_size(64)
+        .build_cartesian_2d(0.5f64..8.5, 0.0..y_max)?;
+    chart
+        .configure_mesh()
+        .light_line_style(WHITE)
+        .x_desc("worker threads")
+        .x_labels(8)
+        .x_label_formatter(&|v| format!("{v:.0}"))
+        .y_desc("speedup over sequential (higher is better)")
+        .label_style((FONT, 14))
+        .draw()?;
+    for (name, label, colour) in [
+        ("parkring", "parkring ThreadPool", RGBColor(0, 114, 178)),
+        ("rayon", "Rayon", RGBColor(230, 159, 0)),
+    ] {
+        let mut points: Vec<(f64, f64)> = speedups
+            .iter()
+            .filter(|s| s.0 == name)
+            .map(|s| (s.1, s.2))
+            .collect();
+        points.sort_by(|a, b| a.0.total_cmp(&b.0));
+        chart
+            .draw_series(LineSeries::new(points.clone(), colour.stroke_width(2)))?
+            .label(label)
+            .legend(move |(x, y)| {
+                PathElement::new(vec![(x, y), (x + 22, y)], colour.stroke_width(3))
+            });
+        chart.draw_series(points.iter().map(|&p| Circle::new(p, 4, colour.filled())))?;
+    }
+    chart
+        .configure_series_labels()
+        .position(SeriesLabelPosition::UpperLeft)
+        .background_style(WHITE.mix(0.9))
+        .border_style(RGBColor(200, 200, 200))
+        .label_font((FONT, 13))
+        .draw()?;
+    root.present()?;
+    Ok(())
+}
+
 fn table(title: &str, samples: &[Sample]) {
     println!("\n### {title}\n");
     println!("| queue | producers | consumers | capacity | Melem/s (median) | 95% CI |");
@@ -402,6 +519,31 @@ fn main() -> Res<()> {
     ] {
         table(title, group(name)?);
     }
+
+    let criterion = target.join("criterion");
+    raw_table(
+        "Deque: owner push + pop",
+        &load_group(&criterion, "deque_owner")?,
+    );
+    raw_table(
+        "Deque: thieves draining 65,536 items",
+        &load_group(&criterion, "deque_steal")?,
+    );
+    let scaling = load_group(&criterion, "pool_fib_cutoff")?;
+    raw_table("Pool: fib(32), sequential below 20", &scaling);
+    raw_table(
+        "Pool: fib(25) with join at every level (overhead)",
+        &load_group(&criterion, "pool_fib")?,
+    );
+    raw_table(
+        "Pool: parallel sum of 4 M u64s (memory-bound)",
+        &load_group(&criterion, "pool_sum")?,
+    );
+    pool_chart(
+        &assets.join("pool_scaling.svg"),
+        "Work-stealing pools: fib(32), sequential below 20",
+        &scaling,
+    )?;
 
     let latency_path = target.join("latency/latency.json");
     match fs::read_to_string(&latency_path) {

@@ -16,6 +16,8 @@ loom = "0.7"
 proptest = "1"
 criterion = { version = "0.5", features = ["html_reports"] }
 crossbeam-queue = "0.3"
+crossbeam-deque = "0.8"
+rayon = "1"
 plotters = { version = "0.3", default-features = false, features = ["svg_backend", "line_series", "point_series", "errorbar"] }
 serde_json = "1"
 
@@ -56,9 +58,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bounded multi-producer multi-consumer queues: a Vyukov-style lock-free ring with futex-based spin-then-park waiting, verified with loom and Miri."
+description = "Bounded MPMC queues (Vyukov and SCQ), a Chase-Lev work-stealing deque and a work-stealing thread pool, with futex-based parking, verified with loom and Miri."
 readme = "README.md"
-keywords = ["mpmc", "queue", "lock-free", "futex", "concurrency"]
+keywords = ["mpmc", "queue", "lock-free", "work-stealing", "futex"]
 categories = ["concurrency", "data-structures"]
 exclude = ["assets/", "docs/", ".github/", "crates/"]
 

@@ -427,10 +427,12 @@ name = "parkring-bench"
 version = "0.3.0"
 dependencies = [
  "criterion",
+ "crossbeam-deque",
  "crossbeam-queue",
  "libc",
  "parkring",
  "plotters",
+ "rayon",
  "serde_json",
 ]
 

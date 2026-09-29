@@ -32,9 +32,8 @@ use crate::traits::forward_bounded_queue;
 ///   the slot after a bounded wait and the producer takes another position.
 /// * **Slower here.** A claim is one `fetch_add`, never a CAS retry loop,
 ///   but each item touches two rings and a data cell. On a 10-core Apple M4
-///   it is about 5× slower than `LockFreeQueue` with one producer and one
-///   consumer and about 7× slower at 4 + 4 (`docs/SCQ.md` §7). Choose it for
-///   the progress guarantee, not for throughput.
+///   it is 5–8× slower than `LockFreeQueue` (`docs/SCQ.md` §7). Choose it
+///   for the progress guarantee, not for throughput.
 /// * **Memory.** 4 words of ring per data cell.
 /// * **`Full` is weaker.** `try_push` can report `Full` while a pop has
 ///   removed an item but not yet returned its cell to the free ring. That is

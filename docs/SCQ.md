@@ -200,6 +200,9 @@ set, spin-only (no parking) so only the queues differ:
 | `LockFreeQueue` (Vyukov) | 13 ns | 16–22 ns |
 | `ScqQueue` | 67–72 ns | 153–163 ns |
 
+In the full throughput benchmark (blocking push/pop, docs/BENCHMARKS.md) the
+gap is 7× at 1 + 1 (12.6 against 91 Melem/s) and 8× at 4 + 4 (6.1 against 49).
+
 Uncontended, on one thread, a push/pop pair costs 22.5 ns against 7.7 ns: the
 expected ~3× from doing about four times the atomic operations. The rest is
 cache-line traffic. Per item SCQ touches entries in two rings and a data cell,

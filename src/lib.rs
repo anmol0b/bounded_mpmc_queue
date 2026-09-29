@@ -1,20 +1,22 @@
-//! Bounded multi-producer multi-consumer queues.
+//! Concurrency primitives built and verified from first principles: bounded
+//! MPMC queues, a work-stealing deque, and a work-stealing thread pool.
 //!
-//! The only dependency is `libc`, used on Linux, Android and macOS to park
-//! threads on a futex. Other platforms use std's `Mutex` and `Condvar`.
+//! | | what it is |
+//! |---|---|
+//! | [`LockFreeQueue`] | Vyukov's per-slot sequence ring. The recommended queue. |
+//! | [`ScqQueue`] | Nikolaev's SCQ: fetch-add claims, genuinely lock-free, slower on this hardware |
+//! | [`BlockingQueue`] | one mutex, two condvars: the reference implementation |
+//! | [`Worker`] / [`Stealer`] | Chase-Lev work-stealing deque |
+//! | [`ThreadPool`], [`join`] | a work-stealing pool built from the pieces above |
 //!
-//! | | [`LockFreeQueue`] | [`BlockingQueue`] |
-//! |---|---|---|
-//! | Fast path | one CAS + one `Release` store, no lock | one mutex acquisition |
-//! | Waiting | spin, yield, then park on a condvar | park on a condvar |
-//! | Capacity | rounded up to a power of two, minimum 2 | exact |
-//! | Scales with threads | yes | serialises on the mutex |
+//! Blocked threads spin briefly, then park on a futex (`futex(2)` on Linux and
+//! Android, `__ulock` on macOS) or on std's `Condvar` elsewhere, so an idle
+//! thread does not burn a core. The only dependency is `libc`.
 //!
-//! Both implement [`BoundedQueue`] and share one API:
+//! The three queues implement [`BoundedQueue`] and share one API:
 //!
-//! * `push` / `pop` block (the lock-free queue parks after a short spin, so an
-//!   idle thread does not burn a core);
-//! * `try_push` / `try_pop` never block and never fail spuriously;
+//! * `push` / `pop` block;
+//! * `try_push` / `try_pop` never block;
 //! * `push_timeout` / `pop_timeout` give up after a deadline;
 //! * `close` rejects further pushes, wakes every waiter, and lets consumers
 //!   drain the remaining items before `pop` reports [`PopError`].

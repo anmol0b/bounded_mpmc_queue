@@ -4,7 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-29
+
+Renamed to `parkring` and extended from two queues to a small set of
+verified concurrency primitives. See the README for what the verification
+found along the way.
 
 ### Changed
 - **Breaking:** the crate is renamed from `bounded_mpmc_queue` to `parkring`.
@@ -19,12 +23,14 @@ adheres to [Semantic Versioning](https://semver.org/).
 ### Performance
 - Median wake latency of a parked consumer on an Apple M4 drops about 10%
   (8.5–8.8 µs against 9.4–10.0 µs), with a lower p99.
+- Benchmarks for the deque against crossbeam-deque and the pool against Rayon;
+  `docs/BENCHMARKS.md` reports every result, including the losses.
 
 ### Added
 - `ScqQueue`: a lock-free bounded MPMC queue after Nikolaev's SCQ (DISC 2019).
   Claims are `fetch_add`s, so contended threads never retry them, and no
   operation waits on a particular other thread. 64-bit targets only. On a
-  10-core Apple M4 it is 5–7× slower than `LockFreeQueue`; `docs/SCQ.md`
+  10-core Apple M4 it is 5–8× slower than `LockFreeQueue`; `docs/SCQ.md`
   explains why, with profiling, and documents a case where the paper's
   threshold bound does not hold (more threads than capacity).
 - `Worker` / `Stealer`: a Chase-Lev work-stealing deque with the Lê et al.

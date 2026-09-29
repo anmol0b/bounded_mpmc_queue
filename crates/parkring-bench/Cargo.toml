@@ -16,9 +16,11 @@ parkring.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
+crossbeam-deque.workspace = true
 crossbeam-queue.workspace = true
 libc.workspace = true
 plotters.workspace = true
+rayon.workspace = true
 serde_json.workspace = true
 
 [[bench]]
@@ -27,4 +29,12 @@ harness = false
 
 [[bench]]
 name = "latency"
+harness = false
+
+[[bench]]
+name = "deque"
+harness = false
+
+[[bench]]
+name = "pool"
 harness = false
