@@ -33,6 +33,10 @@ adheres to [Semantic Versioning](https://semver.org/).
   double take when either `SeqCst` fence is removed; CI requires it. Miri found
   and the retire list now avoids an aliasing violation on grown buffers. See
   `docs/DEQUE.md`.
+- `ThreadPool` with `join`, `spawn` and `install`: a work-stealing pool built
+  from the crate's own pieces (a Chase-Lev deque per worker, `LockFreeQueue`
+  as the injector, futex parking for idle workers). A `join` never allocates;
+  dropping the pool runs every spawned job first. See `docs/POOL.md`.
 - Loom models for `close` after one of two parked consumers is woken, and for
   a timed pop racing a push. CI runs the loom suite against both parkers.
 - CI tests on Windows and type-checks FreeBSD, both on the portable parker.

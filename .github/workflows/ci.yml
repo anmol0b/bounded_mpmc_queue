@@ -97,7 +97,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: loom-${{ matrix.parker }}
-      - run: cargo test -p parkring --release --test loom --test loom_scq
+      - run: cargo test -p parkring --release --test loom --test loom_scq --test loom_pool
       - run: cargo test -p parkring --release --lib deque
 
   loom-mutants:
@@ -142,7 +142,7 @@ jobs:
       - run: cargo miri setup
       - run: >
           cargo miri test -p parkring --lib --test drop_semantics --test send_sync
-          --test regressions --test linearizability --test proptest_model --test deque
+          --test regressions --test linearizability --test proptest_model --test deque --test pool
 
   bench-smoke:
     name: benchmarks compile

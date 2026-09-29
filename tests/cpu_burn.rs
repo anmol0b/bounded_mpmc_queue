@@ -68,6 +68,18 @@ fn blocked_consumers_do_not_burn_cpu() {
     parked_consumer_is_idle(&ScqQueue::new(4), "ScqQueue");
 }
 
+/// An idle pool's workers park too.
+#[test]
+#[ignore = "timing-sensitive; run with --ignored"]
+fn idle_pool_does_not_burn_cpu() {
+    let pool = parkring::ThreadPool::new(4);
+    assert_eq!(pool.install(|| 1 + 1), 2);
+    let (cpu, wall) = cpu_while(|| thread::sleep(Duration::from_millis(1)), || ());
+    println!("idle pool of 4 used {cpu:?} CPU over {wall:?}");
+    assert!(cpu < wall / 20, "idle pool burned {cpu:?} over {wall:?}");
+    drop(pool);
+}
+
 /// Proves the measurement can see a busy thread, so the test above cannot
 /// pass vacuously.
 #[test]

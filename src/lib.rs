@@ -88,6 +88,7 @@
 
 mod deque;
 mod error;
+mod pool;
 mod queue;
 mod sync;
 mod traits;
@@ -97,6 +98,7 @@ pub use deque::{Steal, Stealer, Worker};
 pub use error::{
     PopError, PopTimeoutError, PushError, PushTimeoutError, TryPopError, TryPushError,
 };
+pub use pool::{ThreadPool, join};
 #[cfg(target_pointer_width = "64")]
 pub use queue::ScqQueue;
 pub use queue::{BlockingQueue, LockFreeQueue};

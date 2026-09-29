@@ -116,6 +116,13 @@ impl WaitQueue {
         }
     }
 
+    /// `true` if a thread may be parked or about to park. A `Relaxed`
+    /// snapshot, for callers whose wakeups are best-effort (see the pool).
+    #[inline]
+    pub(crate) fn has_waiters(&self) -> bool {
+        self.inner.waiters.load(Relaxed) != 0
+    }
+
     /// Wakes every parked thread. Used by `close`, so it never consults the
     /// waiter count.
     pub(crate) fn notify_all(&self) {

@@ -18,6 +18,13 @@ pub(crate) use loom::{
     thread,
 };
 
+/// `thread_local!` must be loom's under loom: loom runs every simulated thread
+/// on one OS thread, so a std thread-local would be shared between them.
+#[cfg(loom)]
+pub(crate) use loom::thread_local;
+#[cfg(not(loom))]
+pub(crate) use std::thread_local;
+
 #[cfg(not(loom))]
 #[allow(unused_imports)]
 pub(crate) use std::{
