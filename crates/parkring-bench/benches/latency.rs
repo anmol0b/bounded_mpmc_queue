@@ -27,7 +27,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use common::{BenchQueue, Crossbeam, StdChannel};
-use parkring::{BlockingQueue, LockFreeQueue};
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue};
 
 const SAMPLES: usize = 2000;
 const GAP: Duration = Duration::from_millis(2);
@@ -108,6 +108,7 @@ fn main() {
     }
     let reports = [
         measure::<LockFreeQueue<u64>>(),
+        measure::<ScqQueue<u64>>(),
         measure::<Crossbeam>(),
         measure::<BlockingQueue<u64>>(),
         measure::<StdChannel>(),

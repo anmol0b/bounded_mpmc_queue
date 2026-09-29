@@ -7,7 +7,7 @@ mod common;
 use std::collections::VecDeque;
 
 use common::TestQueue;
-use parkring::{BlockingQueue, LockFreeQueue, TryPopError, TryPushError};
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue, TryPopError, TryPushError};
 use proptest::prelude::*;
 
 #[derive(Clone, Debug)]
@@ -88,6 +88,13 @@ proptest! {
     #[test]
     fn lockfree_matches_vecdeque(cap in 1usize..=17, ops in prop::collection::vec(op(), 0..300)) {
         run::<LockFreeQueue<u32>>(cap, &ops)?;
+    }
+
+    /// SCQ's single-threaded Full/Empty answers are exact, so the same model
+    /// applies. Long sequences exercise the threshold and catchup paths.
+    #[test]
+    fn scq_matches_vecdeque(cap in 1usize..=17, ops in prop::collection::vec(op(), 0..300)) {
+        run::<ScqQueue<u32>>(cap, &ops)?;
     }
 
     #[test]

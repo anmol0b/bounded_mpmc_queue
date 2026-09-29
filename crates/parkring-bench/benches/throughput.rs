@@ -19,7 +19,7 @@ use criterion::measurement::WallTime;
 use criterion::{
     BenchmarkGroup, BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
 };
-use parkring::{BlockingQueue, LockFreeQueue};
+use parkring::{BlockingQueue, LockFreeQueue, ScqQueue};
 
 /// Items per timed iteration. Divisible by every producer/consumer count used.
 const ITEMS: u64 = 1 << 18;
@@ -118,6 +118,7 @@ fn all_queues(
     capacity: usize,
 ) {
     bench::<LockFreeQueue<u64>>(group, producers, consumers, capacity);
+    bench::<ScqQueue<u64>>(group, producers, consumers, capacity);
     bench::<Crossbeam>(group, producers, consumers, capacity);
     bench::<BlockingQueue<u64>>(group, producers, consumers, capacity);
     bench::<StdChannel>(group, producers, consumers, capacity);
@@ -131,10 +132,11 @@ fn spsc(c: &mut Criterion) {
     group.finish();
 }
 
-/// N producers + N consumers. 8+8 oversubscribes a 10-core machine.
+/// N producers + N consumers. 8+8 and 16+16 oversubscribe a 10-core machine,
+/// which is where a CAS retry loop and a preempted producer hurt most.
 fn mpmc(c: &mut Criterion) {
     let mut group = c.benchmark_group("mpmc");
-    for n in [1, 2, 4, 8] {
+    for n in [1, 2, 4, 8, 16] {
         all_queues(&mut group, n, n, 256);
     }
     group.finish();

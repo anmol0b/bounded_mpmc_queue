@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use parkring::{
     BlockingQueue, BoundedQueue, LockFreeQueue, PopError, PopTimeoutError, PushError,
-    PushTimeoutError, TryPopError, TryPushError,
+    PushTimeoutError, ScqQueue, TryPopError, TryPushError,
 };
 
 /// Constructor hook the trait deliberately leaves out.
@@ -24,6 +24,12 @@ pub trait TestQueue<T: Send>: BoundedQueue<T> + Sized + 'static {
 }
 
 impl<T: Send + 'static> TestQueue<T> for LockFreeQueue<T> {
+    fn with_capacity(capacity: usize) -> Self {
+        Self::new(capacity)
+    }
+}
+
+impl<T: Send + 'static> TestQueue<T> for ScqQueue<T> {
     fn with_capacity(capacity: usize) -> Self {
         Self::new(capacity)
     }

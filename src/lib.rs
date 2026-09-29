@@ -65,6 +65,11 @@
 //! assert_sync::<parkring::BlockingQueue<std::rc::Rc<()>>>();
 //! ```
 //!
+//! ```compile_fail
+//! fn assert_sync<T: Sync>() {}
+//! assert_sync::<parkring::ScqQueue<std::rc::Rc<()>>>();
+//! ```
+//!
 //! See `docs/DESIGN.md` in the repository for the memory-ordering argument
 //! and how it is verified with loom and Miri.
 
@@ -77,6 +82,8 @@ mod utils;
 pub use error::{
     PopError, PopTimeoutError, PushError, PushTimeoutError, TryPopError, TryPushError,
 };
+#[cfg(target_pointer_width = "64")]
+pub use queue::ScqQueue;
 pub use queue::{BlockingQueue, LockFreeQueue};
 pub use sync::Backoff;
 pub use traits::BoundedQueue;

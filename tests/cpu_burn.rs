@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue};
+use parkring::{BlockingQueue, BoundedQueue, LockFreeQueue, ScqQueue};
 
 const WINDOW: Duration = Duration::from_millis(300);
 
@@ -65,6 +65,7 @@ fn parked_consumer_is_idle<Q: BoundedQueue<u32>>(q: &Q, name: &str) {
 fn blocked_consumers_do_not_burn_cpu() {
     parked_consumer_is_idle(&LockFreeQueue::new(4), "LockFreeQueue");
     parked_consumer_is_idle(&BlockingQueue::new(4), "BlockingQueue");
+    parked_consumer_is_idle(&ScqQueue::new(4), "ScqQueue");
 }
 
 /// Proves the measurement can see a busy thread, so the test above cannot

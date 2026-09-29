@@ -97,7 +97,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: loom-${{ matrix.parker }}
-      - run: cargo test -p parkring --release --test loom
+      - run: cargo test -p parkring --release --test loom --test loom_scq
+
+  loom-mutants:
+    name: loom catches a broken SCQ threshold
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: --cfg loom --cfg parkring_mutant="scq_conditional_threshold"
+      LOOM_MAX_PREEMPTIONS: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: loom-mutant
+      - name: the mutant must fail
+        run: |
+          if cargo test -p parkring --release --test loom_scq producer_is_not_lost; then
+            echo "::error::loom no longer detects the conditional threshold reset"
+            exit 1
+          fi
 
   miri:
     name: Miri

@@ -21,6 +21,11 @@ adheres to [Semantic Versioning](https://semver.org/).
   (8.5–8.8 µs against 9.4–10.0 µs), with a lower p99.
 
 ### Added
+- `ScqQueue`: a lock-free bounded MPMC queue after Nikolaev's SCQ (DISC 2019).
+  Claims are `fetch_add`s, so contended threads never retry them, and no
+  operation waits on a particular other thread. 64-bit targets only. See
+  `docs/SCQ.md`, including a case where the paper's threshold bound does not
+  hold (more threads than capacity) and how this implementation handles it.
 - Loom models for `close` after one of two parked consumers is woken, and for
   a timed pop racing a push. CI runs the loom suite against both parkers.
 - CI tests on Windows and type-checks FreeBSD, both on the portable parker.

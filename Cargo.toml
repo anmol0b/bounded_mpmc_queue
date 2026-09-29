@@ -23,7 +23,12 @@ serde_json = "1"
 unsafe_op_in_unsafe_fn = "deny"
 missing_docs = "warn"
 missing_debug_implementations = "warn"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)", "cfg(parkring_force_condvar)"] }
+unexpected_cfgs = { level = "warn", check-cfg = [
+    "cfg(loom)",
+    "cfg(parkring_force_condvar)",
+    # Deliberately broken builds for mutation testing; see tests/loom_scq.rs.
+    'cfg(parkring_mutant, values("scq_conditional_threshold"))',
+] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
